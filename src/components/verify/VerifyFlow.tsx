@@ -7,13 +7,19 @@ import type { Company } from "@prisma/client";
 import { Icon } from "@/components/Icon";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
-import { confirmWorkEmailCode, sendWorkEmailCode, submitAlumniProof } from "@/lib/actions/verify";
+import { confirmWorkEmailCode, sendWorkEmailCode, submitAlumniProof, submitOutsiderProof } from "@/lib/actions/verify";
 import { INITIAL_ACTION_STATE } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type Step = "company" | "method" | "active" | "alumni";
+type Step = "company" | "method" | "active" | "alumni" | "outsider";
 
-export function VerifyFlow({ companies }: { companies: Company[] }) {
+export function VerifyFlow({
+  companies,
+  outsider,
+}: {
+  companies: Company[];
+  outsider: Company | null;
+}) {
   const [step, setStep] = useState<Step>("company");
   const [company, setCompany] = useState<Company | null>(null);
 
@@ -22,7 +28,7 @@ export function VerifyFlow({ companies }: { companies: Company[] }) {
       <div className="flex items-center justify-between border-b border-ink-line/70 px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-ink text-[11px] font-black text-white">
-            {step === "company" ? "1" : step === "method" ? "2" : "3"}
+            {step === "company" ? "1" : step === "method" || step === "outsider" ? "2" : "3"}
           </span>
           <div>
             <p className="text-[13px] font-bold text-ink">
@@ -30,16 +36,20 @@ export function VerifyFlow({ companies }: { companies: Company[] }) {
                 ? "选择你要认证的公司"
                 : step === "method"
                   ? `${company?.shortName} · 选择认证方式`
-                  : step === "active"
-                    ? `${company?.shortName} · 企业邮箱验证`
-                    : `${company?.shortName} · 提交离职材料`}
+                  : step === "outsider"
+                    ? "非大厂 · 提交在职材料"
+                    : step === "active"
+                      ? `${company?.shortName} · 企业邮箱验证`
+                      : `${company?.shortName} · 提交离职材料`}
             </p>
             <p className="text-[10.5px] text-ink-mute">
               {step === "company"
                 ? "加入某公司的派，需要对该公司完成一次身份认证"
                 : step === "method"
                   ? "在职走邮箱，离职走材料审核，通过后权益一致"
-                  : "身份材料仅用于审核，不会公开展示"}
+                  : step === "outsider"
+                    ? "不在已开通的大厂名单里？自报公司并上传在职材料，运营人工审核"
+                    : "身份材料仅用于审核，不会公开展示"}
             </p>
           </div>
         </div>
@@ -47,7 +57,8 @@ export function VerifyFlow({ companies }: { companies: Company[] }) {
           <button
             type="button"
             onClick={() => {
-              setStep(step === "method" ? "company" : "method");
+              // 非大厂只有一步表单，上一步直接回公司选择；active / alumni 回认证方式
+              setStep(step === "method" || step === "outsider" ? "company" : "method");
             }}
             className="flex items-center gap-0.5 text-[11px] font-semibold text-ink-mute hover:text-ink"
           >
@@ -59,31 +70,58 @@ export function VerifyFlow({ companies }: { companies: Company[] }) {
 
       <div className="p-4">
         {step === "company" ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {companies.map((item) => (
+          <div className="space-y-2.5">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {companies.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setCompany(item);
+                    setStep("method");
+                  }}
+                  className="flex items-center gap-2 rounded-xl border border-ink-line bg-white p-2.5 text-left transition hover:border-brand/60 hover:bg-brand-soft/30"
+                >
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-black text-white"
+                    style={{ background: item.color }}
+                  >
+                    {item.logoText}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[12px] font-bold text-ink">{item.shortName}</span>
+                    <span className="block truncate text-[9.5px] text-ink-mute">
+                      {item.domains.split(",")[0]}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {outsider ? (
               <button
-                key={item.id}
                 type="button"
                 onClick={() => {
-                  setCompany(item);
-                  setStep("method");
+                  setCompany(outsider);
+                  setStep("outsider");
                 }}
-                className="flex items-center gap-2 rounded-xl border border-ink-line bg-white p-2.5 text-left transition hover:border-brand/60 hover:bg-brand-soft/30"
+                className="flex w-full items-center gap-2 rounded-xl border border-dashed border-ink-line bg-cream p-2.5 text-left transition hover:border-brand/60 hover:bg-brand-soft/30"
               >
                 <span
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-black text-white"
-                  style={{ background: item.color }}
+                  style={{ background: outsider.color }}
                 >
-                  {item.logoText}
+                  {outsider.logoText}
                 </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-[12px] font-bold text-ink">{item.shortName}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[12px] font-bold text-ink">其他公司 · 非大厂认证</span>
                   <span className="block truncate text-[9.5px] text-ink-mute">
-                    {item.domains.split(",")[0]}
+                    在职材料人工审核，通过后只看非大厂兴趣派
                   </span>
                 </span>
+                <Icon name="right" size={14} className="text-ink-mute" />
               </button>
-            ))}
+            ) : null}
           </div>
         ) : null}
 
@@ -141,6 +179,7 @@ export function VerifyFlow({ companies }: { companies: Company[] }) {
 
         {step === "active" && company ? <ActiveVerifyForm company={company} /> : null}
         {step === "alumni" && company ? <AlumniVerifyForm company={company} /> : null}
+        {step === "outsider" && company ? <OutsiderVerifyForm company={company} /> : null}
       </div>
     </div>
   );
@@ -399,6 +438,127 @@ function AlumniVerifyForm({ company }: { company: Company }) {
       </SubmitButton>
       <p className="hint text-center">
         材料仅运营可见，审核完成后立即从待审队列移除
+      </p>
+    </form>
+  );
+}
+
+/**
+ * 非大厂认证：没有企业邮箱域名库可自动命中，只能自报公司 + 上传在职材料走人工审核。
+ * 自报公司名只在审核页展示给运营，不会作为厂牌对外公开。
+ */
+function OutsiderVerifyForm({ company }: { company: Company }) {
+  const router = useRouter();
+  const [state, formAction] = useActionState(submitOutsiderProof, INITIAL_ACTION_STATE);
+  const [fileName, setFileName] = useState("");
+  const [values, setValues] = useState({ employerName: "", title: "", proofNote: "" });
+
+  function update(key: keyof typeof values, value: string) {
+    setValues((prev) => ({ ...prev, [key]: value }));
+  }
+
+  useEffect(() => {
+    if (state.ok) router.refresh();
+  }, [state.ok, router]);
+
+  // 浏览器禁止脚本回填 <input type="file">，提交被驳回时只能请用户重新选一次材料
+  useEffect(() => {
+    if (state.error) setFileName("");
+  }, [state]);
+
+  if (state.ok) {
+    return (
+      <div className="rounded-2xl bg-[#FFF8EC] p-4 text-center ring-1 ring-[#F5E3BF]">
+        <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#9A6B00]">
+          <Icon name="shield" size={20} />
+        </span>
+        <p className="mt-2 text-[13px] font-bold text-[#8A5A00]">材料已提交</p>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-[#A0782E]">
+          运营会在 1 个工作日内完成审核，结果通过站内消息通知你。
+        </p>
+        <Link href="/notifications" className="btn-ghost btn-sm mt-3">
+          查看审核进度
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <form action={formAction} className="space-y-3">
+      <input type="hidden" name="companyId" value={company.id} />
+      <p className="text-[11px] text-ink-mute">
+        带 <span className="text-brand">*</span> 的为必填项
+      </p>
+
+      <div className="grid grid-cols-2 gap-2.5">
+        <div>
+          <label className="label" data-required>你就职的公司</label>
+          <input
+            name="employerName"
+            required
+            maxLength={40}
+            value={values.employerName}
+            onChange={(event) => update("employerName", event.target.value)}
+            placeholder="公司全称"
+            className="input"
+          />
+        </div>
+        <div>
+          <label className="label">部门 / 职位（选填）</label>
+          <input
+            name="title"
+            value={values.title}
+            onChange={(event) => update("title", event.target.value)}
+            placeholder="如：产品部 · 产品经理"
+            className="input"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="label" data-required>上传在职证明材料</label>
+        <label
+          className={cn(
+            "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-ink-line bg-cream px-3 py-5 text-center transition hover:border-brand/60 hover:bg-brand-soft/30",
+            fileName && "border-brand/60 bg-brand-soft/30",
+          )}
+        >
+          <Icon name="upload" size={18} className="text-ink-mute" />
+          <span className="text-[11px] font-semibold text-ink-soft">
+            {fileName || "点击上传工牌 / 在职证明 / 社保记录"}
+          </span>
+          <span className="text-[10px] text-ink-mute">
+            {state.error ? "提交未通过，需要重新选择证明材料" : "支持 JPG / PNG / PDF，不超过 6MB"}
+          </span>
+          <input
+            type="file"
+            name="proof"
+            accept="image/*,application/pdf"
+            className="hidden"
+            onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")}
+          />
+        </label>
+      </div>
+
+      <div>
+        <label className="label" data-required>补充说明</label>
+        <textarea
+          name="proofNote"
+          rows={2}
+          required
+          value={values.proofNote}
+          onChange={(event) => update("proofNote", event.target.value)}
+          placeholder="简单说明材料能证明的信息，如：工牌上的公司名与入职年份"
+          className="input resize-none"
+        />
+      </div>
+
+      <Notice message={state.error} tone="error" />
+      <SubmitButton className="btn-primary w-full" pendingText="提交中…">
+        提交审核
+      </SubmitButton>
+      <p className="hint text-center">
+        审核通过后，你只能看到面向非大厂开放的兴趣派
       </p>
     </form>
   );

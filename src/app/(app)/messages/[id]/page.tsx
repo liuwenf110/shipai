@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { PUBLIC_USER } from "@/lib/api";
+import { audienceOfUserOrAdmin, canViewUser } from "@/lib/scope";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
 import { MarkReadSync } from "@/components/UnreadSync";
@@ -34,6 +35,9 @@ export default async function ConversationPage({
   }
 
   const other = conversation.userAId === user.id ? conversation.userB : conversation.userA;
+
+  // 跨阵营的存量会话同样按不存在处理，与列表页、发起与发送三侧同一口径
+  if (!(await canViewUser(await audienceOfUserOrAdmin(user), user.id, other.id))) notFound();
 
   // 进入即已读：把自己在该会话里的未读置 readAt（列表页下次进入即为最新未读数）
   const markedRead = await prisma.message.updateMany({

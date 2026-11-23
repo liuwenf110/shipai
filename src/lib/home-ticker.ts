@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { PLATFORM_NAME } from "@/lib/constants";
+import { filterViewableUserIds, factionAccessWhere, factionScopeWhere, type Audience } from "@/lib/scope";
 import { timeAgo } from "@/lib/utils";
 
 /** 首页消息栏的一条轮播消息：文案在服务端拼好，客户端只负责轮播与跳转 */
@@ -36,9 +37,11 @@ function clip(value: string) {
  * 因此只要该派的派主本人持有这家公司的离职认证（Employment.kind=ALUMNI 且 VERIFIED），
  * 他就是「原 XX 公司老派主」，仍在任并活跃即视为回归上十派。
  * 待办审批只统计当前用户自己管的派，因此需要 userId；游客不渲染消息栏、不会走到这里。
- * 全部文案由真实数据拼出，不写任何兜底假消息；查不到就少播一条。
+ * audience 为大厂 / 非大厂口径：轮播文案会带出派名、派主昵称，跳向的还是用户主页，
+ * 所以既要按派过滤，也要对文案里出现的用户再判一次可见。
+ * 全部文案由真实数据拼出，查不到就少播一条，不用假消息凑数。
  */
-export async function buildHomeTicker(userId: string): Promise<HomeTickerItem[]> {
+export async function buildHomeTicker(userId: string, audience: Audience): Promise<HomeTickerItem[]> {
   const since = new Date(Date.now() - RECENT_MS);
 
   const [managedFactions, leaders, activities, hotPosts] = await Promise.all([
@@ -55,6 +58,7 @@ export async function buildHomeTicker(userId: string): Promise<HomeTickerItem[]>
       where: {
         status: "ACTIVE",
         leaderId: { not: null },
+        ...factionScopeWhere(audience),
       },
       include: {
         company: true,
@@ -74,7 +78,10 @@ export async function buildHomeTicker(userId: string): Promise<HomeTickerItem[]>
       take: 12,
     }),
     prisma.activity.findMany({
-      where: { createdAt: { gt: since }, faction: { status: "ACTIVE" } },
+      where: {
+        createdAt: { gt: since },
+        faction: { AND: [{ status: "ACTIVE" }, factionAccessWhere(audience, userId)] },
+      },
       include: { faction: true, creator: { select: { id: true, nickname: true } } },
       orderBy: { createdAt: "desc" },
       take: 6,
@@ -83,7 +90,9 @@ export async function buildHomeTicker(userId: string): Promise<HomeTickerItem[]>
       where: {
         status: "PUBLISHED",
         createdAt: { gt: since },
-        faction: { status: "ACTIVE" },
+        faction: {
+          AND: [{ status: "ACTIVE" }, factionAccessWhere(audience, userId)],
+        },
         OR: [{ commentCount: { gte: 3 } }, { likeCount: { gte: 3 } }],
       },
       include: { faction: true, author: { select: { id: true, nickname: true } } },
@@ -93,6 +102,18 @@ export async function buildHomeTicker(userId: string): Promise<HomeTickerItem[]>
   ]);
 
   const items: HomeTickerItem[] = [];
+
+  // 文案里会点名、点进去还会跳到个人主页的几个人（派主 / 发起人 / 作者），跨阵营就整条不播；
+  // 与「查不到就少播一条」同一原则，不留一个点进去 404 的入口
+  const visibleUserIds = await filterViewableUserIds(
+    audience,
+    userId,
+    [
+      ...leaders.map((item) => item.leader?.id ?? ""),
+      ...activities.map((item) => item.creatorId),
+      ...hotPosts.map((item) => item.authorId),
+    ].filter(Boolean),
+  );
 
   // 待办审批排在最前：派主打开首页第一眼就该看到要处理的申请
   if (managedFactions.length) {
@@ -120,6 +141,7 @@ export async function buildHomeTicker(userId: string): Promise<HomeTickerItem[]>
   for (const faction of leaders) {
     const leader = faction.leader;
     if (!leader) continue;
+    if (!visibleUserIds.has(leader.id)) continue;
     // 只认「该派所属公司」的离职认证，避免拿他在别家的校友身份硬凑文案
     const alumni = leader.employments.find((employment) => employment.companyId === faction.companyId);
     if (!alumni) continue;
@@ -134,6 +156,7 @@ export async function buildHomeTicker(userId: string): Promise<HomeTickerItem[]>
   }
 
   for (const activity of activities) {
+    if (!visibleUserIds.has(activity.creatorId)) continue;
     items.push({
       id: `activity-${activity.id}`,
       tag: "新活动",
@@ -145,6 +168,7 @@ export async function buildHomeTicker(userId: string): Promise<HomeTickerItem[]>
   }
 
   for (const post of hotPosts) {
+    if (!visibleUserIds.has(post.authorId)) continue;
     const summary = clip(post.title ?? post.content);
     items.push({
       id: `post-${post.id}`,

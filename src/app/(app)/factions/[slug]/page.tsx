@@ -32,14 +32,19 @@ import {
   MEMBER_STATUS,
 } from "@/lib/constants";
 import { pickUserIdentity } from "@/lib/identity";
+import { audienceOfUserOrAdmin, canAccessFaction } from "@/lib/scope";
 import { withBasePath } from "@/lib/base-path";
 import { withPostIdentity } from "@/lib/revive";
 import { cn, formatActivityTime, formatDate, splitList } from "@/lib/utils";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const faction = await prisma.faction.findUnique({ where: { slug } });
-  return { title: faction ? `${faction.name}` : "兴趣派" };
+  // 页名同样隔离：跨阵营的派连标题也不进浏览历史与分享预览
+  const user = await getCurrentUser();
+  const audience = await audienceOfUserOrAdmin(user);
+  const faction = await prisma.faction.findUnique({ where: { slug }, select: { id: true, name: true } });
+  if (!faction || !(await canAccessFaction(faction.id, audience, user?.id))) return { title: "兴趣派" };
+  return { title: `${faction.name}` };
 }
 
 const TABS = [
@@ -61,12 +66,15 @@ export default async function FactionPage({
   const tab = TABS.some((item) => item.key === query.tab) ? query.tab! : "posts";
 
   const user = await getCurrentUser();
+  const audience = await audienceOfUserOrAdmin(user);
   const faction = await prisma.faction.findUnique({
     where: { slug },
     // 用户关系一律收敛 PUBLIC_USER，避免 flight 载荷携带 passwordHash/email
     include: { company: true, leader: { select: PUBLIC_USER } },
   });
   if (!faction) notFound();
+  // 阵营不可见且本人不在派内 → 整页按不存在处理，派内动态 / 活动 / 成员名单 / 派主资料随页面一并不可达
+  if (!(await canAccessFaction(faction.id, audience, user?.id))) notFound();
 
   const meta = categoryOf(faction.category);
   const statusMeta = FACTION_STATUS[faction.status as keyof typeof FACTION_STATUS];

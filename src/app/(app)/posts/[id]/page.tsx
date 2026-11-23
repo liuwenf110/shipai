@@ -23,15 +23,24 @@ import { withBasePath } from "@/lib/base-path";
 import { pickUserIdentity } from "@/lib/identity";
 import { listMentionCandidates } from "@/lib/mention";
 import { withCommentIdentity } from "@/lib/revive";
+import { audienceOfUserOrAdmin, canAccessFaction } from "@/lib/scope";
 import { looksRichText, prepareRichTextForRender, richTextToPlainText } from "@/lib/rich-text";
 import { formatDateTime, splitList } from "@/lib/utils";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const post = await prisma.post.findUnique({ where: { id }, select: { title: true, content: true } });
+  const post = await prisma.post.findUnique({
+    where: { id },
+    select: { title: true, content: true, factionId: true },
+  });
   // 富文本帖取剥标签后的摘要作标题，避免把 HTML 写进浏览器标签页
   const summary = post ? richTextToPlainText(post.content).slice(0, 16) : "";
-  return { title: post?.title ?? (summary || "帖子") };
+  if (!post) return { title: "帖子" };
+  // 帖标跟随所属派隔离
+  const metaUser = await getCurrentUser();
+  const metaAudience = await audienceOfUserOrAdmin(metaUser);
+  if (!(await canAccessFaction(post.factionId, metaAudience, metaUser?.id))) return { title: "帖子" };
+  return { title: post.title ?? (summary || "帖子") };
 }
 
 export default async function PostPage({
@@ -74,6 +83,10 @@ export default async function PostPage({
     },
   });
   if (!post) notFound();
+
+  // 帖子内容不单独定阵营，一律跟随它所属的派
+  const audience = await audienceOfUserOrAdmin(user);
+  if (!(await canAccessFaction(post.factionId, audience, user?.id))) notFound();
 
   // 评论文档附带作者认证身份（公司 + 在职/离职），同公司优先
   const initialComments = post.comments.map((comment) =>

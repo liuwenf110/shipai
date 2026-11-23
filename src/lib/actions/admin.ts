@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { notify } from "@/lib/notify";
 import { revokeCrossCompanyPendingApplications } from "@/lib/membership";
+import { factionScopeLabel, companyScope, identityScopeConflict } from "@/lib/scope";
 import { CATEGORIES, type CategoryKey } from "@/lib/constants";
 import { SITE_FLAGS, setLeaderWallHidden, setSiteFlag, type SiteFlagKey } from "@/lib/settings";
 import { checkUserText, submitUserImageCheck } from "@/lib/sec";
@@ -24,7 +25,7 @@ function back(path: string, key: "ok" | "error", message: string): never {
   redirect(`${path}${sep}${key}=${encodeURIComponent(message)}`);
 }
 
-/** 审核在职/离职身份认证 */
+/** 审核在职/离职/非大厂身份认证 */
 export async function reviewEmploymentAction(
   _prev: ActionState,
   formData: FormData,
@@ -43,7 +44,17 @@ export async function reviewEmploymentAction(
   if (!employment) return { error: "认证记录不存在" };
   if (employment.status === "VERIFIED") return { error: "该记录已通过审核" };
 
+  // 非大厂记录对外只报用户自报的公司名，不展示系统占位行名称
+  const companyLabel =
+    companyScope(employment.company) === "OUTSIDER"
+      ? (employment.employerName ?? employment.company.name)
+      : employment.company.name;
+
   if (decision === "approve") {
+    // 两侧同时通过会让人群口径只认大厂、非大厂那半边隔离失效，放行前再兜一次互斥校验
+    const conflict = await identityScopeConflict(employment.userId, companyScope(employment.company));
+    if (conflict) return { error: conflict };
+
     await prisma.employment.update({
       where: { id: employmentId },
       data: {
@@ -61,14 +72,14 @@ export async function reviewEmploymentAction(
     await notify({
       userId: employment.userId,
       type: "VERIFY",
-      title: `${employment.company.name} 离职身份审核通过`,
+      title: `${companyLabel} ${employment.kind === "ALUMNI" ? "离职" : "在职"}身份审核通过`,
       body: "欢迎回来，去看看同厂的兴趣派吧。",
       link: "/discover",
     });
     await audit(admin.id, "APPROVE_EMPLOYMENT", "Employment", employmentId, note);
     revalidatePath(path);
     revalidatePath("/discover");
-    back(path, "ok", `已通过 ${employment.user.nickname} 的 ${employment.company.shortName} 身份认证`);
+    back(path, "ok", `已通过 ${employment.user.nickname} 的 ${companyLabel} 身份认证`);
   }
 
   await prisma.employment.update({
@@ -76,15 +87,15 @@ export async function reviewEmploymentAction(
     data: {
       status: "REJECTED",
       reviewerId: admin.id,
-      reviewerNote: note || "材料无法证明身份，请补充清晰的离职证明",
+      reviewerNote: note || "材料无法证明身份，请补充更清晰的证明材料",
       reviewedAt: new Date(),
     },
   });
   await notify({
     userId: employment.userId,
     type: "VERIFY",
-    title: `${employment.company.name} 身份认证未通过`,
-    body: note || "请补充更清晰的离职证明材料后重新提交。",
+    title: `${companyLabel} 身份认证未通过`,
+    body: note || "请补充更清晰的证明材料后重新提交。",
     link: "/verify",
   });
   await audit(admin.id, "REJECT_EMPLOYMENT", "Employment", employmentId, note);
@@ -555,6 +566,8 @@ export async function adminUpdateFactionAction(
   const category = String(formData.get("category") ?? "").trim();
   const joinMode = String(formData.get("joinMode") ?? "").trim();
   const allowCrossCompany = String(formData.get("allowCrossCompany") ?? "") === "true";
+  const visibleToCorp = String(formData.get("visibleToCorp") ?? "") === "true";
+  const visibleToOutsider = String(formData.get("visibleToOutsider") ?? "") === "true";
   const sortOrderRaw = String(formData.get("sortOrder") ?? "").trim();
   const redirectTo = `/admin/factions/${factionId}`;
 
@@ -563,6 +576,8 @@ export async function adminUpdateFactionAction(
   if (name.length < 2) return { error: "派名至少 2 个字" };
   if (!(category in CATEGORIES)) return { error: "兴趣分类不合法" };
   if (!["OPEN", "APPROVAL"].includes(joinMode)) return { error: "加入方式不合法" };
+  // 两枚都不勾 = 谁也看不到的死派，直接拦下（隔离口径见 src/lib/scope.ts）
+  if (!visibleToCorp && !visibleToOutsider) return { error: "可见人群至少勾选一项" };
 
   // 展示位置权重：空值 / 非数字视为“不修改”，越界归一到 0–9999
   const parsedSortOrder = Number(sortOrderRaw);
@@ -588,6 +603,8 @@ export async function adminUpdateFactionAction(
       ...(categoryChanged ? { emoji: nextMeta.emoji } : {}),
       joinMode,
       allowCrossCompany,
+      visibleToCorp,
+      visibleToOutsider,
       sortOrder,
     },
   });
@@ -600,7 +617,22 @@ export async function adminUpdateFactionAction(
     : "";
   const sortNote =
     faction.sortOrder !== sortOrder ? ` | 展示位置: ${faction.sortOrder}→${sortOrder}` : "";
-  await audit(admin.id, "UPDATE_FACTION", "Faction", factionId, name + categoryNote + switchNote + sortNote);
+  // 可见人群变更单独记账：隔离问题的排查几乎都从「谁什么时候改了派的可见范围」开始
+  const scopeChanged =
+    faction.visibleToCorp !== visibleToCorp || faction.visibleToOutsider !== visibleToOutsider;
+  const scopeNote = scopeChanged
+    ? ` | 可见人群: ${factionScopeLabel({
+        visibleToCorp: faction.visibleToCorp,
+        visibleToOutsider: faction.visibleToOutsider,
+      })}→${factionScopeLabel({ visibleToCorp, visibleToOutsider })}`
+    : "";
+  await audit(
+    admin.id,
+    "UPDATE_FACTION",
+    "Faction",
+    factionId,
+    name + categoryNote + switchNote + sortNote + scopeNote,
+  );
 
   // 开关从开→关：事务化清理跨公司 PENDING 申请（与派主管理台通道共用同一实现）
   if (turnedOff) {

@@ -18,8 +18,10 @@ export default async function VerifyPage({
   const params = await searchParams;
   const user = await requireUser("/verify");
 
-  const [companies, employments] = await Promise.all([
-    prisma.company.findMany({ orderBy: { verifiedCount: "desc" } }),
+  const [companies, outsiderCompany, employments] = await Promise.all([
+    // 大厂磁贴只列已开通的大厂，非大厂认证走单独入口（占位公司行 scope=OUTSIDER）
+    prisma.company.findMany({ where: { scope: "CORP" }, orderBy: { verifiedCount: "desc" } }),
+    prisma.company.findFirst({ where: { scope: "OUTSIDER" }, orderBy: { createdAt: "asc" } }),
     prisma.employment.findMany({
       where: { userId: user.id },
       include: { company: true },
@@ -44,7 +46,8 @@ export default async function VerifyPage({
           <p className="text-[11px] font-bold tracking-[0.22em] text-brand">IDENTITY</p>
           <h1 className="mt-1 text-[24px] font-black tracking-tight">公司身份认证</h1>
           <p className="mt-1 text-[12.5px] leading-relaxed text-ink-mute">
-            通过认证后才能加入该公司旗下的兴趣派，认证信息只会以「在职 / 离职」标签展示。
+            通过认证后才能加入对应的兴趣派，认证信息只会以「在职 / 离职」标签展示。
+            不在已开通大厂名单里的，可以走「非大厂认证」，由运营人工审核。
           </p>
         </div>
         <Link href="/inbox" className="btn-ghost btn-sm">
@@ -85,6 +88,11 @@ export default async function VerifyPage({
             const meta =
               EMPLOYMENT_STATUS[employment.status as keyof typeof EMPLOYMENT_STATUS] ??
               EMPLOYMENT_STATUS.PENDING;
+            // 非大厂记录挂在系统占位公司行上，对用户只报他自报的公司名
+            const isOutsider = employment.company.scope === "OUTSIDER";
+            const displayName = isOutsider
+              ? (employment.employerName ?? "非大厂身份")
+              : employment.company.name;
             return (
               <div key={employment.id} className="card p-3.5">
                 <div className="flex items-start gap-3">
@@ -96,17 +104,20 @@ export default async function VerifyPage({
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <p className="text-[13.5px] font-bold text-ink">{employment.company.name}</p>
+                      <p className="text-[13.5px] font-bold text-ink">{displayName}</p>
                       <Badge tone={meta.tone as "warn" | "ok" | "bad"}>{meta.label}</Badge>
                       <Badge tone="mute">
                         {EMPLOYMENT_KIND[employment.kind as keyof typeof EMPLOYMENT_KIND]?.label ??
                           employment.kind}
                       </Badge>
+                      {isOutsider ? <Badge tone="violet">非大厂</Badge> : null}
                     </div>
                     <p className="mt-0.5 text-[11px] text-ink-mute">
                       {employment.method === "EMAIL"
                         ? `企业邮箱验证 · ${employment.workEmail ?? ""}`
-                        : `人工审核 · ${employment.title ?? "未填写部门"}`}
+                        : isOutsider
+                          ? `人工审核 · 在职证明${employment.title ? ` · ${employment.title}` : ""}`
+                          : `人工审核 · ${employment.title ?? "未填写部门"}`}
                       {employment.verifiedAt ? ` · ${formatDate(employment.verifiedAt)} 通过` : ""}
                     </p>
                     {employment.reviewerNote ? (
@@ -116,10 +127,10 @@ export default async function VerifyPage({
                     ) : null}
                     {employment.status === "VERIFIED" ? (
                       <Link
-                        href={`/discover?company=${employment.companyId}`}
+                        href={isOutsider ? "/discover" : `/discover?company=${employment.companyId}`}
                         className="mt-1.5 inline-flex items-center gap-0.5 text-[11px] font-semibold text-brand"
                       >
-                        查看该公司的派 <Icon name="right" size={11} />
+                        {isOutsider ? "查看非大厂的派" : "查看该公司的派"} <Icon name="right" size={11} />
                       </Link>
                     ) : null}
                   </div>
@@ -131,7 +142,7 @@ export default async function VerifyPage({
       ) : null}
 
       <div className="mt-5">
-        <VerifyFlow companies={companies} />
+        <VerifyFlow companies={companies} outsider={outsiderCompany} />
       </div>
 
       <div className="mt-4 grid gap-2.5 sm:grid-cols-3">

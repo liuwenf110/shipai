@@ -147,6 +147,7 @@ model Company {
   name          String   @unique
   shortName     String
   domains       String // 逗号分隔的企业邮箱域名，如 "alibaba-inc.com,alibaba.com"
+  scope         String   @default("CORP") // CORP 大厂（在职走邮箱域自动通过）| OUTSIDER 非大厂（只走材料人工审核）
   industry      String   @default("互联网")
   color         String   @default("#FF5A1F")
   logoText      String
@@ -165,6 +166,7 @@ model Employment {
   status        String    @default("PENDING") // PENDING | VERIFIED | REJECTED
   method        String    @default("EMAIL") // EMAIL 邮箱域校验 | MANUAL 人工审核
   workEmail     String?
+  employerName  String? // 非大厂认证时用户自报的在职公司名（12 家大厂不填，走 Company）
   title         String? // 部门 / 职位
   startedYear   Int?
   leftYear      Int?
@@ -200,6 +202,8 @@ model Faction {
   description       String
   joinMode          String   @default("OPEN") // OPEN 自由加入 | APPROVAL 需派主审批
   allowCrossCompany Boolean  @default(false) // 是否允许其他公司已认证用户申请加入
+  visibleToCorp     Boolean  @default(true) // 大厂人群（12 家任一已认证）可见
+  visibleToOutsider Boolean  @default(false) // 非大厂人群与未登录认证用户可见；两者皆 true = 公共派
   status            String   @default("REVIEWING") // REVIEWING 待审核 | ACTIVE 正常 | ARCHIVED 已关闭
   sortOrder         Int      @default(0) // 展示位置权重：数值越大越靠前，0 = 不干预（由成员数与动态数决定顺序，见 src/lib/activity.ts）
   leaderId          String?

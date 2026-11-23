@@ -5,6 +5,11 @@ import { prisma } from "@/lib/db";
 import { withPostIdentity } from "@/lib/revive";
 import { pickUserIdentity } from "@/lib/identity";
 import { buildHomeTicker } from "@/lib/home-ticker";
+import {
+  GUEST_AUDIENCE,
+  factionAccessWhere,
+  factionScopeWhere,
+} from "@/lib/scope";
 import { Landing } from "@/components/marketing/Landing";
 import { HomeFeed } from "@/components/home/HomeFeed";
 
@@ -12,17 +17,19 @@ export default async function HomePage() {
   const viewer = await getViewer();
 
   if (!viewer) {
+    // 游客与未认证用户同口径：只看勾了「非大厂」的派（公司墙仍按已开通大厂展示，属公开营销信息）
+    const guestScope = factionScopeWhere(GUEST_AUDIENCE);
     const [companyCount, factionCount, memberCount, featuredCandidates, companies, activity] = await Promise.all([
-      prisma.company.count(),
-      prisma.faction.count({ where: { status: "ACTIVE" } }),
+      prisma.company.count({ where: { scope: "CORP" } }),
+      prisma.faction.count({ where: { status: "ACTIVE", ...guestScope } }),
       prisma.user.count(), // 落地页人数口径：全部入驻用户（不限已完成公司认证）
       prisma.faction.findMany({
-        where: { status: "ACTIVE" },
+        where: { status: "ACTIVE", ...guestScope },
         // leader/author 收敛 PUBLIC_USER，避免 flight 载荷携带 passwordHash/email
         include: { company: true, leader: { select: PUBLIC_USER } },
       }),
-      // 公司墙只展示已开通的公司名称，按接入时间排列
-      prisma.company.findMany({ orderBy: { createdAt: "asc" } }),
+      // 公司墙只展示已开通的大厂名称，按接入时间排列
+      prisma.company.findMany({ where: { scope: "CORP" }, orderBy: { createdAt: "asc" } }),
       loadFactionActivity(),
     ]);
 
@@ -53,6 +60,8 @@ export default async function HomePage() {
     .map((item) => item.factionId);
 
   const joinedFactionIds = memberships.map((item) => item.factionId);
+
+  const audience = viewer.audience;
 
   const [
     posts,
@@ -86,11 +95,16 @@ export default async function HomePage() {
       : Promise.resolve(0),
     prisma.faction.findMany({
       where: {
-        status: "ACTIVE",
-        id: { notIn: myFactionIds },
-        companyId: {
-          in: viewer.verifiedEmployments.map((item) => item.companyId),
-        },
+        AND: [
+          { status: "ACTIVE" },
+          { id: { notIn: myFactionIds } },
+          {
+            companyId: {
+              in: viewer.verifiedEmployments.map((item) => item.companyId),
+            },
+          },
+          factionAccessWhere(audience, viewer.user.id),
+        ],
       },
       include: { company: true, leader: { select: PUBLIC_USER } },
     }),
@@ -103,8 +117,11 @@ export default async function HomePage() {
       where: {
         status: "PUBLISHED",
         faction: {
-          status: "ACTIVE",
-          ...(joinedFactionIds.length ? { id: { notIn: joinedFactionIds } } : {}),
+          AND: [
+            { status: "ACTIVE" },
+            joinedFactionIds.length ? { id: { notIn: joinedFactionIds } } : {},
+            factionAccessWhere(audience, viewer.user.id),
+          ],
         },
       },
       include: {
@@ -116,7 +133,7 @@ export default async function HomePage() {
     }),
     loadFactionActivity(),
     // 顶部消息栏：老派主回归等真实动态，外加当前派主的待审批待办
-    buildHomeTicker(viewer.user.id),
+    buildHomeTicker(viewer.user.id, audience),
     // 自己所属派的未开始活动：按临近开场优先取 3 条，混排进派内新鲜事
     myFactionIds.length
       ? prisma.activity.findMany({

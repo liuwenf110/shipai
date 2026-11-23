@@ -4,9 +4,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { notify } from "@/lib/notify";
+import { audienceOfUserOrAdmin, canViewUser } from "@/lib/scope";
 
 /**
  * 用户关注：toggle 语义（未关注则关注、已关注则取消），关注对全体登录用户开放、无认证门槛。
+ * 但跨阵营（大厂 ↔ 非大厂）一律按「用户不存在」拦下，与主页 / 私信同一口径。
  * 关系唯一性由 Follow(followerId, followingId) 库级保证；
  * 新增关注给被关注人写 Notification type=FOLLOW（点击跳关注人主页），取消关注不反向发通知。
  */
@@ -59,6 +61,12 @@ export async function toggleFollowAction(formData: FormData) {
     select: { id: true, nickname: true, status: true },
   });
   if (!target || target.status !== "ACTIVE") {
+    back("/discover", "error", "用户不存在");
+  }
+
+  // 关注不能越过阵营：文案仍用「用户不存在」，不给探测谁在哪个阵营留口子
+  const audience = await audienceOfUserOrAdmin(me);
+  if (!(await canViewUser(audience, me.id, target.id))) {
     back("/discover", "error", "用户不存在");
   }
 

@@ -8,6 +8,7 @@ import { QueryNotice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
 import { setFactionStatusAction } from "@/lib/actions/admin";
 import { categoryOf, FACTION_STATUS } from "@/lib/constants";
+import { factionScopeLabel } from "@/lib/scope";
 import { cn, formatDate } from "@/lib/utils";
 
 const TABS = [
@@ -93,6 +94,10 @@ export default async function AdminFactionsPage({
                         {statusMeta.label}
                       </Badge>
                       <Badge tone="mute">{meta.label}</Badge>
+                      {/* 可见人群常显：隔离上线后运营巡检要一眼看出哪些派对外部开放了 */}
+                      <Badge tone={faction.visibleToOutsider ? "ok" : "mute"}>
+                        {factionScopeLabel(faction)}
+                      </Badge>
                       {faction.sortOrder > 0 ? <Badge tone="warn">置顶 权重{faction.sortOrder}</Badge> : null}
                     </div>
                     <p className="mt-0.5 text-[10.5px] text-ink-mute">

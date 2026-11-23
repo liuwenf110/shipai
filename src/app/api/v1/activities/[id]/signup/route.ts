@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { apiError, apiOk, getApiUser } from "@/lib/api";
 import { syncGroupMembership } from "@/lib/groupchat";
+import { audienceOfUserOrAdmin, canAccessFaction } from "@/lib/scope";
 
 /** POST /api/v1/activities/[id]/signup 报名 / 取消报名（切换） */
 export async function POST(
@@ -13,6 +14,12 @@ export async function POST(
 
   const activity = await prisma.activity.findUnique({ where: { id } });
   if (!activity) return apiError("活动不存在", 404);
+
+  // 报名不要求入派，因此必须单独拦跨阵营：否则外部用户能通过接口报上大厂活动并收到名单
+  const audience = await audienceOfUserOrAdmin(user);
+  if (!(await canAccessFaction(activity.factionId, audience, user.id))) {
+    return apiError("活动不存在", 404);
+  }
 
   // 认证过的用户（在职或离职）无需加入派系即可直接报名活动
   const verified = await prisma.employment.findFirst({

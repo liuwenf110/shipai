@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser, verifiedEmploymentAt } from "@/lib/auth";
 import { notify, notifyAdmins } from "@/lib/notify";
 import { revokeCrossCompanyPendingApplications } from "@/lib/membership";
+import { audienceOfUserOrAdmin, canAccessFaction } from "@/lib/scope";
 import { syncGroupMembership } from "@/lib/groupchat";
 import { saveProofFile } from "@/lib/upload";
 import { checkUserText, submitUserImageCheck } from "@/lib/sec";
@@ -63,6 +64,11 @@ export async function joinFactionAction(formData: FormData) {
     include: { company: true },
   });
   if (!faction) back("/discover", "error", "该派不存在");
+
+  // 页面层已把跨阵营的派渲染成 404，这里拦的是直接 POST 与历史链接：进不去的派也不能申请加入
+  const joinAudience = await audienceOfUserOrAdmin(user);
+  if (!(await canAccessFaction(factionId, joinAudience, user.id))) back("/discover", "error", "该派不存在");
+
   if (faction.status !== "ACTIVE") back(path, "error", "该派还在筹备审核中");
 
  // 查用户所有已认证的公司身份
@@ -1003,6 +1009,13 @@ export async function signupActivityAction(formData: FormData) {
 
   const activity = await prisma.activity.findUnique({ where: { id: activityId } });
   if (!activity) back(path, "error", "活动不存在");
+
+  // 报名不要求入派，所以必须单独过阵营闸门，否则跨阵营能报上大厂活动并看到报名名单
+  const signupAudience = await audienceOfUserOrAdmin(user);
+  if (!(await canAccessFaction(activity.factionId, signupAudience, user.id))) {
+    back(path, "error", "活动不存在");
+  }
+
   if (activity.status !== "OPEN") back(path, "error", "活动已关闭");
   if (activity.startAt.getTime() < Date.now()) back(path, "error", "活动已经开始，无法报名");
 
@@ -1266,6 +1279,10 @@ export async function createFactionAction(
   const meta = CATEGORIES[category as CategoryKey];
   const slug = `${category.toLowerCase()}-${shortId(6)}`;
 
+  // 新建派默认可见人群跟所属公司的阵营：外部认证用户建的派只对非大厂开放，
+  // 12 家大厂建的派保持只勾大厂（需要对外开放时由运营在后台改）
+  const createdByCorp = (employment.company.scope ?? "CORP") === "CORP";
+
   const faction = await prisma.faction.create({
     data: {
       name,
@@ -1276,6 +1293,8 @@ export async function createFactionAction(
       tagline,
       description,
       allowCrossCompany,
+      visibleToCorp: createdByCorp,
+      visibleToOutsider: !createdByCorp,
       status: "REVIEWING",
       leaderId: null,
       // 创建者紧接着会被建为 ACTIVE 成员，成员数同属初始状态一并写入，避免新建派 memberCount=0 的计数漂移

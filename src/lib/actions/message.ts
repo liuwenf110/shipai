@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { checkUserText } from "@/lib/sec";
 import { MESSAGE_MAX_LEN } from "@/lib/constants";
+import { audienceOfUserOrAdmin, canViewUser } from "@/lib/scope";
 import type { ActionState } from "@/lib/types";
 
 /**
@@ -87,6 +88,12 @@ export async function startConversationAction(formData: FormData) {
   if (!meOk) back(backPath, "error", "完成公司认证后才能发私信");
   if (!targetOk) back(backPath, "error", "对方未完成公司认证，暂无法私信");
 
+  // 大厂 / 非大厂之间不可互发：私信不经过派，是隔离主线盖不到的直连通道
+  const audience = await audienceOfUserOrAdmin(me);
+  if (!(await canViewUser(audience, me.id, target.id))) {
+    back(backPath, "error", "对方与你不在同一人群范围，暂无法私信");
+  }
+
   const key = pairKey(me.id, target.id);
   // 升序两 id 固定落位 userA/userB，保证同一对用户永远命中同一条会话
   const [userAId, userBId] = [me.id, target.id].sort();
@@ -129,6 +136,13 @@ export async function sendMessageAction(prev: ActionState, formData: FormData): 
   if (!sec.ok) return { error: "内容包含违规信息，请修改后再发送" };
 
   const recipientId = conversation.userAId === me.id ? conversation.userBId : conversation.userAId;
+
+  // 存量会话兜底：两人一方后来改了阵营时，发送侧同样按跨阵营拦下
+  const audience = await audienceOfUserOrAdmin(me);
+  if (!(await canViewUser(audience, me.id, recipientId))) {
+    return { error: "对方与你不在同一人群范围，无法发送" };
+  }
+
   const preview = content.length > 40 ? `${content.slice(0, 40)}…` : content;
 
   await prisma.$transaction([

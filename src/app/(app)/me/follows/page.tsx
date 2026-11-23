@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { audienceOfUserOrAdmin, userScopeWhere } from "@/lib/scope";
 import { PUBLIC_USER } from "@/lib/api";
 import { formatChatTime } from "@/lib/utils";
 import { toggleFollowAction } from "@/lib/actions/follow";
@@ -37,8 +38,12 @@ export default async function FollowsPage(props: {
 
   const page = Math.max(1, Number(searchParams.page) || 1);
   const skip = (page - 1) * PAGE_SIZE;
+  // 存量跨阵营关注（隔离上线前就互相关注的人）在列表与条数里一并消失，口径与关注/主页拦截一致
+  const scope = userScopeWhere(await audienceOfUserOrAdmin(me));
   const where =
-    tab === "followers" ? { followingId: me.id } : { followerId: me.id };
+    tab === "followers"
+      ? { followingId: me.id, ...(scope ? { follower: { is: scope } } : {}) }
+      : { followerId: me.id, ...(scope ? { following: { is: scope } } : {}) };
 
   // tab 决定看哪一侧的关系：followers=谁关注了我，following=我关注了谁
   // 各分支内先归一成 { user, at }，避免联合类型跨分支取 include 字段

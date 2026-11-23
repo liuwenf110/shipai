@@ -3,6 +3,7 @@ import { apiError, apiOk, getApiUser, IDENTIFIED_USER, metaOf, paging, readJson 
 import { withPostIdentity } from "@/lib/revive";
 import { buildLinkSnapshot, normalizeLinkUrl } from "@/lib/link-preview";
 import { looksRichText, richTextToPlainText, sanitizeRichText } from "@/lib/rich-text";
+import { audienceOfUserOrAdmin, canAccessFaction } from "@/lib/scope";
 
 /** GET /api/v1/factions/[slug]/posts?page= 派内帖子分页 */
 export async function GET(
@@ -16,6 +17,10 @@ export async function GET(
 
   const faction = await prisma.faction.findUnique({ where: { slug }, select: { id: true } });
   if (!faction) return apiError("该派不存在", 404);
+
+  // 派内帖子跟随派隔离：跨阵营拿不到列表，也拿不到总数
+  const audience = await audienceOfUserOrAdmin(user);
+  if (!(await canAccessFaction(faction.id, audience, user?.id))) return apiError("该派不存在", 404);
 
   const where = { factionId: faction.id, status: "PUBLISHED" };
   const [total, posts] = await Promise.all([

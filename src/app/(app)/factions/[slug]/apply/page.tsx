@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { audienceOfUserOrAdmin, canAccessFaction } from "@/lib/scope";
 import { Icon } from "@/components/Icon";
 import { Notice } from "@/components/Notice";
 import { LeaderApplyForm } from "@/components/faction/LeaderApplyForm";
@@ -18,6 +19,10 @@ export default async function ApplyPage({ params }: { params: Promise<{ slug: st
     include: { company: true, leader: true },
   });
   if (!faction) notFound();
+
+  // 申请派主同样过阵营闸门，否则拿到链接就能跨阵营抢位
+  const audience = await audienceOfUserOrAdmin(user);
+  if (!(await canAccessFaction(faction.id, audience, user.id))) notFound();
 
   const [employment, membership, pending, viceLeaderCount] = await Promise.all([
     // 派主 / 副派主申请只要求完成过任一公司认证，公司限制由「必须为本派成员」把关

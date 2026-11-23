@@ -241,6 +241,8 @@ export default async function AdminFactionDetailPage({
             joinMode: faction.joinMode,
             sortOrder: String(faction.sortOrder),
             allowCrossCompany: faction.allowCrossCompany,
+            visibleToCorp: faction.visibleToCorp,
+            visibleToOutsider: faction.visibleToOutsider,
           }}
         />
       </section>

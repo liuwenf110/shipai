@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { apiError, apiOk, getApiUser, PUBLIC_USER } from "@/lib/api";
+import { audienceOfUserOrAdmin, canAccessFaction } from "@/lib/scope";
 
 /** GET /api/v1/factions/[slug] 派详情 + 成员关系 + 待审申请 */
 export async function GET(
@@ -25,6 +26,10 @@ export async function GET(
     },
   });
   if (!faction) return apiError("该派不存在", 404);
+
+  // 跨阵营直接请求派详情同样按不存在处理，与前台派页 notFound 同口径
+  const audience = await audienceOfUserOrAdmin(user);
+  if (!(await canAccessFaction(faction.id, audience, user?.id))) return apiError("该派不存在", 404);
 
   const [membership, application] = await Promise.all([
     user

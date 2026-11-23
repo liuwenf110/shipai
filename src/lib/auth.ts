@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/db";
 import { touchSession } from "@/lib/presence";
+import { audienceOfEmployments, type Audience } from "@/lib/scope";
 
 const COOKIE_NAME = process.env.SESSION_COOKIE || "shipai_session";
 const SESSION_DAYS = Number(process.env.SESSION_DAYS || 30);
@@ -97,6 +98,10 @@ export const getViewer = cache(async () => {
     unreadCount,
     unreadMessages,
     isVerified: employments.some((item) => item.status === "VERIFIED"),
+    // 大厂 / 非大厂人群口径，全站隔离判定唯一来源，见 src/lib/scope.ts
+    audience: (user.role === "ADMIN" ? "ADMIN" : audienceOfEmployments(
+      employments.filter((item) => item.status === "VERIFIED"),
+    )) as Audience,
   };
 });
 

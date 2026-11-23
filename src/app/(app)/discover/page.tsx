@@ -10,6 +10,7 @@ import { Icon } from "@/components/Icon";
 import { categoryOf } from "@/lib/constants";
 import { pickUserIdentity } from "@/lib/identity";
 import { SITE_FLAGS, getHiddenLeaderWallFactionIds, getSiteFlag } from "@/lib/settings";
+import { audienceOfViewer, factionAccessWhere, factionScopeWhere } from "@/lib/scope";
 
 export const metadata = { title: "发现兴趣派" };
 
@@ -24,25 +25,31 @@ export default async function DiscoverPage({
 }) {
   const params = await searchParams;
   const viewer = await getViewer();
+  // 大厂 / 非大厂人群口径：本层只负责「派可不可见」，派内内容随派一起被隔离
+  const audience = audienceOfViewer(viewer);
   // 发现页保留匿名可浏览（落地页「先逛逛兴趣派」等宣传位要能真逛），仅导航不再展示「发现」入口
 
   const category = params.category && params.category !== "ALL" ? params.category : undefined;
   const companyId = params.company;
   const q = params.q?.trim();
 
+  // 隔离条件与搜索条件各占 AND 一项：直接展开会把 OR 键互相覆盖（关键词那一条也是 OR）
   const where = {
-    status: { in: ["ACTIVE", "REVIEWING"] },
-    ...(category ? { category } : {}),
-    ...(companyId ? { companyId } : {}),
-    ...(q
-      ? {
-          OR: [
-            { name: { contains: q } },
-            { tagline: { contains: q } },
-            { description: { contains: q } },
-          ],
-        }
-      : {}),
+    AND: [
+      { status: { in: ["ACTIVE", "REVIEWING"] } },
+      factionAccessWhere(audience, viewer?.user.id),
+      category ? { category } : {},
+      companyId ? { companyId } : {},
+      q
+        ? {
+            OR: [
+              { name: { contains: q } },
+              { tagline: { contains: q } },
+              { description: { contains: q } },
+            ],
+          }
+        : {},
+    ],
   };
 
   // 首屏由服务端直读数据库，后续筛选全部走 /api/v1/factions
@@ -64,7 +71,15 @@ export default async function DiscoverPage({
     }),
     prisma.faction.count({ where }),
     prisma.company.findMany({
-      where: { factions: { some: { status: { in: ["ACTIVE", "REVIEWING"] } } } },
+      // 公司筛选块跟着人群走：大厂看不到只面向非大厂开放派的公司（含非大厂占位公司行）
+      where: {
+        factions: {
+          some: {
+            status: { in: ["ACTIVE", "REVIEWING"] },
+            ...factionAccessWhere(audience, viewer?.user.id),
+          },
+        },
+      },
       include: { _count: { select: { employments: { where: { status: "VERIFIED" } } } } },
     }),
     loadFactionActivity(),
@@ -76,7 +91,11 @@ export default async function DiscoverPage({
       : Promise.resolve([]),
     // 热门活动：全平台报名中且未开始的活动，按报名数降序、临近开场优先
     prisma.activity.findMany({
-      where: { status: "OPEN", startAt: { gt: new Date() }, faction: { status: "ACTIVE" } },
+      where: {
+        status: "OPEN",
+        startAt: { gt: new Date() },
+        faction: { status: "ACTIVE", ...factionScopeWhere(audience) },
+      },
       include: {
         faction: {
           select: { id: true, slug: true, name: true, emoji: true, companyId: true, category: true },
@@ -97,7 +116,7 @@ export default async function DiscoverPage({
     }),
     // 派主墙：只收录已有派主的在营派，照片 + 简介 + 派宣传；不参与顶部筛选（属于全局门面带）
     prisma.faction.findMany({
-      where: { status: "ACTIVE", leaderId: { not: null } },
+      where: { status: "ACTIVE", leaderId: { not: null }, ...factionScopeWhere(audience) },
       include: { leader: { select: PUBLIC_USER } },
     }),
     // 后台开关：关掉后整栏不渲染（派卡片/派详情页的派主照片不受影响）

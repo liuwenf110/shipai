@@ -14,6 +14,8 @@ export type AdminFactionDefaults = {
   joinMode: string;
   sortOrder: string;
   allowCrossCompany: boolean;
+  visibleToCorp: boolean;
+  visibleToOutsider: boolean;
 };
 
 /** 运营后台：编辑派资料。字段受控，保存失败时保留已填内容 */
@@ -34,6 +36,8 @@ export function AdminFactionForm({
     joinMode: defaults.joinMode,
     sortOrder: defaults.sortOrder,
     allowCrossCompany: defaults.allowCrossCompany ? "true" : "",
+    visibleToCorp: defaults.visibleToCorp ? "true" : "",
+    visibleToOutsider: defaults.visibleToOutsider ? "true" : "",
   });
 
   return (
@@ -93,6 +97,35 @@ export function AdminFactionForm({
         <span>允许跨公司加入</span>
         <span className="ml-auto text-[10px] text-ink-mute">关闭将自动作废跨公司待审申请</span>
       </label>
+
+      <div className="rounded-lg border border-ink-line p-2.5">
+        <p className="text-[10.5px] font-bold text-ink-mute">可见人群</p>
+        <p className="mt-0.5 text-[10px] text-ink-mute">
+          至少勾选一项，两项都勾 = 公共派，所有登录用户可见；未认证用户与外部认证用户只看「非大厂」
+        </p>
+        <div className="mt-2 space-y-1.5">
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-ink-line p-2 text-[12px] has-[:checked]:border-brand has-[:checked]:bg-brand-soft/40">
+            <input
+              type="checkbox"
+              {...form.toggle("visibleToCorp")}
+              value="true"
+              className="h-3.5 w-3.5 rounded accent-brand"
+            />
+            <span>大厂</span>
+            <span className="ml-auto text-[10px] text-ink-mute">12 家已开通公司认证的在职 / 离职员工</span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-ink-line p-2 text-[12px] has-[:checked]:border-brand has-[:checked]:bg-brand-soft/40">
+            <input
+              type="checkbox"
+              {...form.toggle("visibleToOutsider")}
+              value="true"
+              className="h-3.5 w-3.5 rounded accent-brand"
+            />
+            <span>非大厂</span>
+            <span className="ml-auto text-[10px] text-ink-mute">外部人工审核认证用户与未认证用户</span>
+          </label>
+        </div>
+      </div>
       <SubmitButton className="btn-primary btn-sm" pendingText="保存中…">
         保存派资料
       </SubmitButton>

@@ -89,7 +89,7 @@ export default async function AdminVerificationsPage({
         <p className="text-[11px] font-bold tracking-[0.22em] text-brand">VERIFICATION</p>
         <h1 className="mt-1 text-[22px] font-black tracking-tight">身份审核</h1>
         <p className="mt-1 text-[12px] text-ink-mute">
-          在职邮箱验证会自动通过；离职材料需要人工核对证明文件后放行
+          在职邮箱验证会自动通过；离职材料与非大厂在职材料需要人工核对证明文件后放行
         </p>
       </div>
 
@@ -145,6 +145,11 @@ export default async function AdminVerificationsPage({
         <div className="space-y-2.5">
           {records.map((record) => {
             const files = splitList(record.proofFiles).map(withBasePath);
+            // 非大厂记录挂在系统占位公司行上，真正要审的是用户自报的 employerName
+            const isOutsider = record.company.scope === "OUTSIDER";
+            const companyLabel = isOutsider
+              ? (record.employerName ?? record.company.name)
+              : record.company.name;
             return (
               <div key={record.id} className="card p-4">
                 <div className="flex flex-wrap items-start gap-2.5">
@@ -158,12 +163,13 @@ export default async function AdminVerificationsPage({
                       <Badge tone="ocean">
                         {record.method === "EMAIL" ? "邮箱验证" : "材料审核"}
                       </Badge>
+                      {isOutsider ? <Badge tone="violet">非大厂</Badge> : null}
                       <span className="text-[10.5px] text-ink-mute">
                         提交于 {formatDateTime(record.createdAt)}
                       </span>
                     </div>
                     <p className="mt-1 text-[11.5px] text-ink-soft">
-                      {record.company.name}
+                      {companyLabel}
                       {record.workEmail ? ` · ${record.workEmail}` : ""}
                       {record.title ? ` · ${record.title}` : ""}
                     </p>

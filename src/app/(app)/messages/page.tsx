@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getViewer, requireUser } from "@/lib/auth";
+import { audienceOfViewer, userScopeWhere } from "@/lib/scope";
 import { PUBLIC_USER } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 import { Icon } from "@/components/Icon";
@@ -13,10 +14,24 @@ export const metadata = { title: "私信" };
 export default async function MessagesListPage() {
   const user = await requireUser("/messages");
   const viewer = await getViewer();
+  // 存量跨阵营会话（隔离上线前互发过私信的两人）不再列出，与发起/发送两侧拦截同一口径
+  const dmScope = userScopeWhere(audienceOfViewer(viewer));
 
   const [conversations, unreadGroups, groupRows] = await Promise.all([
     prisma.conversation.findMany({
-      where: { OR: [{ userAId: user.id }, { userBId: user.id }] },
+      where: {
+        AND: [
+          { OR: [{ userAId: user.id }, { userBId: user.id }] },
+          dmScope
+            ? {
+                OR: [
+                  { userAId: user.id, userB: { is: dmScope } },
+                  { userBId: user.id, userA: { is: dmScope } },
+                ],
+              }
+            : {},
+        ],
+      },
       include: {
         userA: { select: PUBLIC_USER },
         userB: { select: PUBLIC_USER },

@@ -12,6 +12,12 @@ import { IDENTIFIED_USER } from "@/lib/api";
 import { SearchForm } from "@/components/search/SearchForm";
 import { categoryOf } from "@/lib/constants";
 import { pickUserIdentity } from "@/lib/identity";
+import {
+  audienceOfViewer,
+  factionAccessWhere,
+  factionScopeWhere,
+  userScopeWhere,
+} from "@/lib/scope";
 import { formatActivityTime, timeAgo } from "@/lib/utils";
 import { richTextToPlainText } from "@/lib/rich-text";
 
@@ -28,23 +34,41 @@ export default async function SearchPage({
   const keyword = (params.q ?? "").trim();
   const viewer = await getViewer();
   const loggedIn = Boolean(viewer);
+  // 游客与未认证用户同口径：搜不到只勾大厂的派，也搜不到大厂用户
+  const audience = audienceOfViewer(viewer);
 
   const [factionCandidates, companies, posts, activities, users] = keyword
     ? await Promise.all([
         prisma.faction.findMany({
           where: {
-            status: { in: ["ACTIVE", "REVIEWING"] },
-            OR: [
-              { name: { contains: keyword } },
-              { tagline: { contains: keyword } },
-              { description: { contains: keyword } },
+            AND: [
+              { status: { in: ["ACTIVE", "REVIEWING"] } },
+              factionAccessWhere(audience, viewer?.user.id),
+              {
+                OR: [
+                  { name: { contains: keyword } },
+                  { tagline: { contains: keyword } },
+                  { description: { contains: keyword } },
+                ],
+              },
             ],
           },
           include: { company: true },
         }),
         prisma.company.findMany({
           where: {
-            OR: [{ name: { contains: keyword } }, { shortName: { contains: keyword } }],
+            AND: [
+              // 只列对本人群开放了派的公司，非大厂占位公司行因此不会出现在大厂搜索结果里
+              {
+                factions: {
+                  some: {
+                    status: { in: ["ACTIVE", "REVIEWING"] },
+                    ...factionScopeWhere(audience),
+                  },
+                },
+              },
+              { OR: [{ name: { contains: keyword } }, { shortName: { contains: keyword } }] },
+            ],
           },
           take: 4,
         }),
@@ -52,6 +76,7 @@ export default async function SearchPage({
           ? prisma.post.findMany({
               where: {
                 status: "PUBLISHED",
+                faction: factionAccessWhere(audience, viewer?.user.id),
                 OR: [{ title: { contains: keyword } }, { content: { contains: keyword } }],
               },
               include: { author: { select: IDENTIFIED_USER }, faction: true },
@@ -63,7 +88,9 @@ export default async function SearchPage({
           ? prisma.activity.findMany({
               where: {
                 status: { not: "CANCELLED" },
-                faction: { status: "ACTIVE" },
+                faction: {
+                  AND: [{ status: "ACTIVE" }, factionAccessWhere(audience, viewer?.user.id)],
+                },
                 OR: [
                   { title: { contains: keyword } },
                   { location: { contains: keyword } },
@@ -77,7 +104,12 @@ export default async function SearchPage({
           : Promise.resolve([]),
         loggedIn
           ? prisma.user.findMany({
-              where: { status: "ACTIVE", nickname: { contains: keyword } },
+              // 阵营在 SQL 层收口：先取再筛会让某些关键词直接空页，条数也会泄人数
+              where: {
+                status: "ACTIVE",
+                nickname: { contains: keyword },
+                ...(userScopeWhere(audience) ?? {}),
+              },
               orderBy: { createdAt: "desc" },
               take: LIMIT,
             })

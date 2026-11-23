@@ -23,6 +23,7 @@ import { activityShareSlogan, categoryOf } from "@/lib/constants";
 import { looksRichText, prepareRichTextForRender } from "@/lib/rich-text";
 import { withBasePath } from "@/lib/base-path";
 import { pickUserIdentity } from "@/lib/identity";
+import { audienceOfUserOrAdmin, canAccessFaction } from "@/lib/scope";
 import { capacityLabel, cn, formatActivityTime, splitList, timeAgo, toDateTimeLocal } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -31,8 +32,16 @@ export async function generateMetadata({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { id } = await params;
-  const activity = await prisma.activity.findUnique({ where: { id }, select: { title: true } });
-  return { title: activity?.title ?? "活动" };
+  const activity = await prisma.activity.findUnique({
+    where: { id },
+    select: { title: true, factionId: true },
+  });
+  if (!activity) return { title: "活动" };
+  // 活动标题跟随所属派隔离，猜 id 也进不了浏览历史
+  const user = await getCurrentUser();
+  const audience = await audienceOfUserOrAdmin(user);
+  if (!(await canAccessFaction(activity.factionId, audience, user?.id))) return { title: "活动" };
+  return { title: activity.title ?? "活动" };
 }
 
 export default async function ActivityPage({
@@ -69,6 +78,9 @@ export default async function ActivityPage({
     },
   });
   if (!activity || activity.faction.slug !== slug) notFound();
+
+  const audience = await audienceOfUserOrAdmin(user);
+  if (!(await canAccessFaction(activity.factionId, audience, user?.id))) notFound();
 
   const [membership, mySignup, verifiedCount, groupChat] = await Promise.all([
     user

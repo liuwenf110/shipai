@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { apiError, apiOk, getApiUser, IDENTIFIED_USER, metaOf, paging } from "@/lib/api";
 import { withCommentIdentity, withPostIdentity } from "@/lib/revive";
+import { audienceOfUserOrAdmin, canAccessFaction } from "@/lib/scope";
 
 /** GET /api/v1/posts/[id]?page= 帖子详情 + 评论分页 */
 export async function GET(
@@ -20,6 +21,10 @@ export async function GET(
     },
   });
   if (!post || post.status !== "PUBLISHED") return apiError("帖子不存在", 404);
+
+  // 帖子属于哪个派就跟随哪个派的可见性，猜 id 也拿不到跨阵营内容
+  const audience = await audienceOfUserOrAdmin(user);
+  if (!(await canAccessFaction(post.factionId, audience, user?.id))) return apiError("帖子不存在", 404);
 
   const [totalComments, comments, liked] = await Promise.all([
     prisma.comment.count({ where: { postId: id, status: "PUBLISHED" } }),

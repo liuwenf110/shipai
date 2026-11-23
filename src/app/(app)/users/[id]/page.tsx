@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { IDENTIFIED_USER } from "@/lib/api";
 import { EMPLOYMENT_KIND } from "@/lib/constants";
+import { audienceOfUserOrAdmin, canViewUser } from "@/lib/scope";
 import { Avatar } from "@/components/Avatar";
 import { Badge } from "@/components/Badge";
 import { Icon } from "@/components/Icon";
@@ -53,6 +54,10 @@ export default async function UserPublicPage({
     },
   });
   if (!user || user.status === "DISABLED") notFound();
+
+  // 用户主页是脱离「派」的主线通道，必须单独设卡：大厂与非大厂人群互相 404，连在不在系统都不露
+  const audience = await audienceOfUserOrAdmin(me);
+  if (!(await canViewUser(audience, me.id, user.id))) notFound();
 
   const isSelf = me.id === user.id;
   // IDENTIFIED_USER.employments 已限定 status=VERIFIED，有条目即「已完成公司认证」（在职或离职均可）
