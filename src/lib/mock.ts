@@ -1,0 +1,1 @@
+export const AVATAR_COLORS_MOCK = ["#FF5A1F", "#2F7D5D", "#1F6FEB", "#7C3AED", "#B45309"];

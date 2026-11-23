@@ -1,0 +1,543 @@
+// 上十派 · 数据模型
+// 说明：SQLite 不支持 enum，所有状态字段使用 String + 常量约束（见 src/lib/constants.ts）
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String?   @unique // 邮箱注册时填写；手机号注册可为空
+  phone              String?   @unique // 手机号注册时填写，11 位中国大陆手机号
+  wechatOpenid       String?   @unique // 小程序 web-view 微信登录：jscode2session 换取的 openid，一个微信号对应一个账号
+  passwordHash       String
+  nickname           String
+  avatarColor        String    @default("#FF5A1F")
+  avatarImage        String? // 派主照片：/uploads/xxx 相对路径，只在派相关展示位（派主墙/派卡片/派详情）用，无图回落字母头像
+  bio                String?
+  resetCode          String? // 忘记密码：邮箱找回下发的 6 位验证码（发送时写入，校验通过或过期后清空）
+  resetCodeExpiresAt DateTime? // 验证码有效期（10 分钟）
+  resetAttempts      Int       @default(0) // 验证码错误次数，超过上限需重新获取
+  role               String    @default("USER") // USER | ADMIN
+  status             String    @default("ACTIVE") // ACTIVE 正常 | DISABLED 已禁用
+  disabledReason     String?
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  employments          Employment[]
+  reviewedEmployments  Employment[]        @relation("EmploymentReviewer")
+  memberships          FactionMember[]
+  ledFactions          Faction[]           @relation("FactionLeader")
+  posts                Post[]
+  comments             Comment[]
+  commentMentions      CommentMention[]
+  postLikes            PostLike[]
+  sessions             Session[]
+  leaderApplications   LeaderApplication[]
+  reviewedLeaders      LeaderApplication[] @relation("LeaderReviewer")
+  inviteCodesCreated   InviteCode[]        @relation("InviteLeader")
+  inviteCodesUsed      InviteCode[]        @relation("InviteUsedBy")
+  inviteReviews        InviteCode[]        @relation("InviteReviewer")
+  activities           Activity[]
+  activitySignups      ActivitySignup[]
+  notifications        Notification[]
+  reportsFiled         Report[]            @relation("ReportReporter")
+  reportsHandled       Report[]            @relation("ReportHandler")
+  conversationsA       Conversation[]      @relation("ConvUserA")
+  conversationsB       Conversation[]      @relation("ConvUserB")
+  sentMessages         Message[]           @relation("MsgSender")
+  receivedMessages     Message[]           @relation("MsgRecipient")
+  memberViewRequests   MemberViewRequest[]
+  reviewedViewRequests MemberViewRequest[] @relation("MemberViewReviewer")
+  following            Follow[]            @relation("FollowFollower")
+  followers            Follow[]            @relation("FollowFollowing")
+  // 活动群聊：发起的群 / 加入的群 / 发过的群消息
+  groupChatsCreated    GroupChat[]         @relation("GroupChatCreator")
+  groupChatMembers     GroupChatMember[]
+  groupMessagesSent    GroupMessage[]      @relation("GroupMsgSender")
+  // 历史邮箱别名：改邮箱后旧邮箱仍可登录本账号
+  emailAliases         EmailAlias[]
+}
+
+// 登录邮箱别名：用户在资料页改邮箱时，把被替换掉的旧邮箱登记于此，
+// 使新旧邮箱都能解析到同一账号，且旧邮箱被占用不允许他人重复注册。
+model EmailAlias {
+  id        String   @id @default(cuid())
+  userId    String
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// 站内私信会话：每对用户仅一条，pairKey = 两 userId 升序 join("_")
+model Conversation {
+  id            String   @id @default(cuid())
+  pairKey       String   @unique
+  userAId       String
+  userBId       String
+  lastMessageAt DateTime @default(now())
+  lastPreview   String?
+  createdAt     DateTime @default(now())
+
+  userA    User      @relation("ConvUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB    User      @relation("ConvUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([userAId, lastMessageAt])
+  @@index([userBId, lastMessageAt])
+}
+
+// 站内私信消息：status 预留 HIDDEN 供后续治理，本期只写 PUBLISHED
+model Message {
+  id             String    @id @default(cuid())
+  conversationId String
+  senderId       String
+  recipientId    String
+  content        String
+  status         String    @default("PUBLISHED") // PUBLISHED | HIDDEN
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("MsgSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient    User         @relation("MsgRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([recipientId, readAt])
+}
+
+// 用户关注关系：followerId 关注 followingId，唯一键防重复关注
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("FollowFollower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("FollowFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+}
+
+model Session {
+  id         String    @id
+  userId     String
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  // 最近一次活跃时间（页面/接口访问与前端心跳打点），用于后台真实在线判定
+  lastSeenAt DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([lastSeenAt])
+}
+
+model Company {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  shortName     String
+  domains       String // 逗号分隔的企业邮箱域名，如 "alibaba-inc.com,alibaba.com"
+  industry      String   @default("互联网")
+  color         String   @default("#FF5A1F")
+  logoText      String
+  verifiedCount Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  employments Employment[]
+  factions    Faction[]
+}
+
+model Employment {
+  id            String    @id @default(cuid())
+  userId        String
+  companyId     String
+  kind          String    @default("ACTIVE") // ACTIVE 在职 | ALUMNI 离职
+  status        String    @default("PENDING") // PENDING | VERIFIED | REJECTED
+  method        String    @default("EMAIL") // EMAIL 邮箱域校验 | MANUAL 人工审核
+  workEmail     String?
+  title         String? // 部门 / 职位
+  startedYear   Int?
+  leftYear      Int?
+  proofFiles    String? // 逗号分隔的相对路径，如 /uploads/xxx.png
+  proofNote     String?
+  verifyCode    String?
+  codeExpiresAt DateTime?
+  attempts      Int       @default(0) // 验证码错误次数
+  reviewerId    String?
+  reviewerNote  String?
+  reviewedAt    DateTime?
+  verifiedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company  Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reviewer User?   @relation("EmploymentReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, companyId, kind])
+  @@index([status])
+  @@index([companyId])
+}
+
+model Faction {
+  id                String   @id @default(cuid())
+  name              String
+  slug              String   @unique
+  companyId         String
+  category          String // YOGA | OUTDOOR | HIKING | BOARDGAME | RUNNING | FOOD | MUSIC | TECH | AI | PET | READING | HANFU | TRAVEL | HIFI | CYCLING | ESPORTS | FITNESS | DANCE | SKI | SURF | PARENTING | PSYCHOLOGY | TCM | CERT | CHARITY | SECONDHAND | WELFARE | WOMEN | BADMINTON | OTHER
+  emoji             String   @default("🏷️")
+  tagline           String
+  description       String
+  joinMode          String   @default("OPEN") // OPEN 自由加入 | APPROVAL 需派主审批
+  allowCrossCompany Boolean  @default(false) // 是否允许其他公司已认证用户申请加入
+  status            String   @default("REVIEWING") // REVIEWING 待审核 | ACTIVE 正常 | ARCHIVED 已关闭
+  sortOrder         Int      @default(0) // 展示位置权重：数值越大越靠前，0 = 不干预（由成员数与动态数决定顺序，见 src/lib/activity.ts）
+  leaderId          String?
+  memberCount       Int      @default(0)
+  postCount         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  leader             User?               @relation("FactionLeader", fields: [leaderId], references: [id], onDelete: SetNull)
+  members            FactionMember[]
+  posts              Post[]
+  activities         Activity[]
+  leaderApplications LeaderApplication[]
+  inviteCodes        InviteCode[]
+  memberViewRequests MemberViewRequest[]
+
+  @@index([category])
+  @@index([companyId])
+  @@index([status])
+}
+
+model FactionMember {
+  id        String    @id @default(cuid())
+  factionId String
+  userId    String
+  role      String    @default("MEMBER") // LEADER 派主 | ADMIN 副派主 | MEMBER 成员
+  status    String    @default("ACTIVE") // ACTIVE | PENDING | LEFT | REMOVED
+  joinedAt  DateTime  @default(now())
+  appliedAt DateTime? // 最近一次提交加入申请的时刻（PENDING 时刷新；直接 ACTIVE 时为 null）
+
+  faction Faction @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([factionId, userId])
+  @@index([userId])
+}
+
+// 成员列表查看权限申请：除派主/副派主外所有人（含普通成员）需申请，通过后永久可见；
+// 有派主的派由派主在管理台审核，无派主的派由运营在后台「加入申请」代批
+model MemberViewRequest {
+  id         String    @id @default(cuid())
+  factionId  String
+  userId     String
+  status     String    @default("PENDING") // PENDING 待审核 | APPROVED 已通过 | REJECTED 已拒绝
+  createdAt  DateTime  @default(now())
+  reviewedAt DateTime?
+  reviewerId String?
+
+  faction  Faction @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User?   @relation("MemberViewReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@unique([factionId, userId])
+  @@index([factionId, status])
+}
+
+model Post {
+  id           String   @id @default(cuid())
+  factionId    String
+  authorId     String
+  kind         String   @default("POST") // POST 普通帖 | ANNOUNCE 公告 | ACTIVITY 活动召集
+  title        String?
+  content      String
+  images       String? // 逗号分隔
+  linkUrl      String? // 外链/公众号文章链接（帖子附带的原文地址）
+  linkTitle    String? // 抓取到的原文标题，失败时退化为域名
+  linkImage    String? // 抓取到的原文封面（og:image，外部 URL）
+  linkDesc     String? // 抓取到的原文摘要（og:description）
+  pinned       Boolean  @default(false)
+  status       String   @default("PUBLISHED") // PUBLISHED | HIDDEN | DELETED
+  likeCount    Int      @default(0)
+  commentCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  faction  Faction    @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  author   User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments Comment[]
+  likes    PostLike[]
+
+  @@index([factionId, createdAt])
+  @@index([status])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  authorId  String
+  content   String
+  status    String   @default("PUBLISHED") // PUBLISHED | HIDDEN
+  createdAt DateTime @default(now())
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  mentions CommentMention[]
+
+  @@index([postId, createdAt])
+}
+
+// 评论里的 @ 提及关系：不存昵称文本，用户改名后历史提及自动失效而非错指他人
+model CommentMention {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([userId])
+}
+
+model PostLike {
+  id     String @id @default(cuid())
+  postId String
+  userId String
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  factionId   String
+  creatorId   String
+  title       String
+  description String
+  location    String
+  images      String? // 逗号分隔（活动配图，与帖子同用 saveProofFile/splitList）
+  startAt     DateTime
+  capacity    Int      @default(20)
+  signupCount Int      @default(0)
+  status      String   @default("OPEN") // OPEN | CLOSED | CANCELLED
+  pinned      Boolean  @default(false) // 派主/副派主发起时可置顶，动态流与活动列表排前
+  createdAt   DateTime @default(now())
+
+  faction Faction          @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  creator User             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  signups ActivitySignup[]
+  // 活动群聊：每场活动最多一群，由发起人一键拉起
+  groupChat GroupChat?
+
+  @@index([factionId, startAt])
+}
+
+model ActivitySignup {
+  id         String   @id @default(cuid())
+  activityId String
+  userId     String
+  status     String   @default("GOING") // GOING | CANCELLED
+  createdAt  DateTime @default(now())
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, userId])
+}
+
+// 活动群聊：发起人对已报名成员一键拉起，每场活动唯一一群；
+// 退出报名即退出群成员，重新报名自动回到群里（群未拉起时不联动）
+model GroupChat {
+  id            String   @id @default(cuid())
+  activityId    String   @unique
+  creatorId     String
+  lastMessageAt DateTime @default(now())
+  lastPreview   String?
+  createdAt     DateTime @default(now())
+
+  activity Activity          @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  creator  User              @relation("GroupChatCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  members  GroupChatMember[]
+  messages GroupMessage[]
+
+  @@index([creatorId])
+}
+
+model GroupChatMember {
+  id         String    @id @default(cuid())
+  groupId    String
+  userId     String
+  // 进入群聊页时刷新为当前时间，未读数 = 此时刻之后他人发的消息数
+  lastReadAt DateTime?
+  joinedAt   DateTime  @default(now())
+
+  group GroupChat @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+}
+
+model GroupMessage {
+  id        String   @id @default(cuid())
+  groupId   String
+  senderId  String
+  content   String
+  status    String   @default("PUBLISHED") // PUBLISHED | HIDDEN（与私信口径一致，治理预留）
+  createdAt DateTime @default(now())
+
+  group  GroupChat @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sender User      @relation("GroupMsgSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, createdAt])
+}
+
+model LeaderApplication {
+  id            String    @id @default(cuid())
+  factionId     String
+  userId        String
+  requestedRole String    @default("LEADER") // LEADER 派主 | ADMIN 副派主
+  reason        String
+  plan          String
+  experience    String?
+  proofImage    String? // 过往带队截图相对路径，如 /uploads/xxx.jpg
+  status        String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  reviewerId    String?
+  reviewerNote  String?
+  reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  faction  Faction @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User?   @relation("LeaderReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([factionId])
+}
+
+/// 派主申请的注册邀请码：申请时为 PENDING，运营审核通过后生成一次性邀请码
+model InviteCode {
+  id           String    @id @default(cuid())
+  code         String?   @unique // 审核通过后生成，8 位易读字符
+  factionId    String
+  leaderId     String // 发起申请的派主 / 副派主
+  note         String // 申请说明（邀请用途）
+  status       String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  reviewerId   String?
+  reviewerNote String?
+  reviewedAt   DateTime?
+  usedById     String?
+  usedAt       DateTime?
+  expiresAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  faction  Faction @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  leader   User    @relation("InviteLeader", fields: [leaderId], references: [id], onDelete: Cascade)
+  usedBy   User?   @relation("InviteUsedBy", fields: [usedById], references: [id], onDelete: SetNull)
+  reviewer User?   @relation("InviteReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([factionId])
+  @@index([leaderId])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String // VERIFY | LEADER | POST | COMMENT | MENTION | ACTIVITY | MESSAGE | SYSTEM
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// 开发模式下的站内「模拟邮箱」，用于展示验证邮件内容
+model MailMessage {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  body      String
+  code      String?
+  createdAt DateTime @default(now())
+
+  @@index([to, createdAt])
+}
+
+// 运营操作审计
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String?
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// 用户举报：帖子 / 评论 / 用户，运营在后台处理
+model Report {
+  id          String    @id @default(cuid())
+  targetType  String // POST | COMMENT | USER
+  targetId    String
+  reporterId  String
+  reason      String // SPAM | ABUSE | PORN | FRAUD | OTHER
+  detail      String?
+  status      String    @default("PENDING") // PENDING | RESOLVED | IGNORED
+  handledById String?
+  handledNote String?
+  handledAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  reporter  User  @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  handledBy User? @relation("ReportHandler", fields: [handledById], references: [id], onDelete: SetNull)
+
+  @@unique([targetType, targetId, reporterId])
+  @@index([status, createdAt])
+}
+
+/// 内容安全异步图片检测流水：mediaCheckAsync 提交后记录 trace_id 与被检内容映射，
+/// 微信「消息推送」回调命中违规时按 trace_id 找到目标自动下架（需 MP 后台配置推送 URL/Token 才生效）
+model SecCheckLog {
+  id         String    @id @default(cuid())
+  traceId    String    @unique // mediaCheckAsync 返回的 trace_id
+  targetType String // POST | COMMENT | AVATAR
+  targetId   String // 对应 Post.id / Comment.id，AVATAR 时为 User.id
+  openid     String?
+  suggest    String? // 回调回填：pass | review | risky
+  checkedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([traceId])
+}
+
+/// 运营侧前台开关（无关联的纯配置表）：一 key 一行，值统一存 "1"/"0"
+model SiteSetting {
+  key       String   @id // leaderWall：发现页派主墙
+  value     String // "1" 展示 | "0" 隐藏
+  updatedAt DateTime @updatedAt
+}

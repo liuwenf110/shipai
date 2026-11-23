@@ -1,0 +1,13 @@
+#!/usr/bin/expect -f
+# 通过密码 SSH 登录远端执行一条命令（密码从环境变量 SSH_PASS 读取，不落盘）
+set timeout 300
+set cmd [lindex $argv 0]
+set pass $env(SSH_PASS)
+spawn ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR tuoniao@47.110.139.146 $cmd
+expect {
+    -re "(?i)password:" { send -- "$pass\r"; exp_continue }
+    -re "(?i)permission denied" { exit 2 }
+    eof
+}
+catch wait result
+exit [lindex $result 3]

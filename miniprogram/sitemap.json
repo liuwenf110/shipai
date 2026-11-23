@@ -1,0 +1,9 @@
+{
+  "desc": "上十派小程序为 web-view 壳，内容索引由内嵌 H5 提供",
+  "rules": [
+    {
+      "action": "allow",
+      "page": "*"
+    }
+  ]
+}

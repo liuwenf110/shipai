@@ -1,0 +1,39 @@
+{
+  "description": "上十派微信小程序（web-view 壳），内嵌现有 H5",
+  "projectname": "shipai-miniprogram",
+  "appid": "wx9a36660e327d702b",
+  "compileType": "miniprogram",
+  "libVersion": "3.5.0",
+  "setting": {
+    "es6": true,
+    "urlCheck": false,
+    "postcss": false,
+    "minified": true,
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "enhance": false,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "condition": false,
+    "swc": false,
+    "disableSWC": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "condition": {},
+  "simulatorPluginLibVersion": {},
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "editorSetting": {}
+}

@@ -1,0 +1,18 @@
+[Unit]
+Description=Shipai (厂派) Next.js app on 127.0.0.1:3010
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/tuoniao/apps/shipai
+Environment=NODE_ENV=production
+Environment=PORT=3010
+ExecStart=/home/tuoniao/runtime/node/bin/node /home/tuoniao/apps/shipai/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3010
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/tuoniao/apps/shipai/app.log
+StandardError=append:/home/tuoniao/apps/shipai/app.log
+
+[Install]
+WantedBy=default.target

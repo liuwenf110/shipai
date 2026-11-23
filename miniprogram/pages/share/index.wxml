@@ -1,0 +1,16 @@
+<!-- 原生分享中转页：web-view 内的 H5 无法主动调起转发面板，跳来本页后由 open-type="share" 按钮调起 -->
+<view class="wrap">
+  <view class="label">{{kind === 'faction' ? '正在分享兴趣派' : '正在分享活动'}}</view>
+
+  <view class="card">
+    <image wx:if="{{image}}" class="cover" src="{{image}}" mode="aspectFill"></image>
+    <view class="body">
+      <view class="title">{{title}}</view>
+      <view class="sub">上十派 · 离职不离圈，兴趣不断线</view>
+    </view>
+  </view>
+
+  <button class="share" open-type="share">分享给微信好友</button>
+  <view class="tip">对方点开卡片将直接进入这一{{kind === 'faction' ? '个派' : '场活动'}}</view>
+  <view class="back" bindtap="goBack">返回</view>
+</view>

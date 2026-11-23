@@ -1,0 +1,69 @@
+page {
+  background: #f4f4f5;
+}
+
+.wrap {
+  padding: 48rpx 40rpx;
+}
+
+.label {
+  font-size: 24rpx;
+  color: #8a8a8e;
+  margin-bottom: 16rpx;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 20rpx;
+  overflow: hidden;
+  box-shadow: 0 8rpx 24rpx rgba(26, 26, 26, 0.08);
+}
+
+.cover {
+  width: 100%;
+  height: 320rpx;
+  display: block;
+  background: #ececee;
+}
+
+.body {
+  padding: 28rpx;
+}
+
+.title {
+  font-size: 30rpx;
+  font-weight: 600;
+  line-height: 44rpx;
+  color: #1a1a1a;
+}
+
+.sub {
+  margin-top: 14rpx;
+  font-size: 22rpx;
+  color: #8a8a8e;
+}
+
+.share {
+  margin-top: 48rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 44rpx;
+  background: #1a1a1a;
+  color: #ffffff;
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.tip {
+  margin-top: 20rpx;
+  text-align: center;
+  font-size: 22rpx;
+  color: #8a8a8e;
+}
+
+.back {
+  margin-top: 40rpx;
+  text-align: center;
+  font-size: 26rpx;
+  color: #1a1a1a;
+}

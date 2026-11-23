@@ -1,0 +1,210 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+/* 手机适配：viewport 的 user-scalable/no 在 iOS Safari 10+ 会被忽略，这里用 touch-action 兑底——
+   pan-x pan-y 不含 pinch-zoom 关键字，捏合缩放与双击缩放都不再生效，
+   单指横滑（如「我的派」卡位横滚）不受影响；横向橡皮筋回弹一并关闭，避免整页被左右“拉扯” */
+html {
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: none;
+}
+
+body {
+  background-color: #fbf7f2;
+  color: #14110f;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(680px 420px at 12% -8%, rgba(255, 90, 31, 0.13), transparent 70%),
+    radial-gradient(620px 420px at 92% 6%, rgba(124, 58, 237, 0.1), transparent 72%);
+  pointer-events: none;
+}
+
+::selection {
+  background: rgba(255, 90, 31, 0.22);
+}
+
+/* 滚动条弱化 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #e0d6ca transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #e0d6ca;
+  border-radius: 999px;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl bg-white shadow-card ring-1 ring-ink-line/70;
+  }
+
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-brand text-white shadow-[0_8px_20px_-8px_rgba(255,90,31,0.8)] hover:bg-brand-dark;
+  }
+
+  .btn-ghost {
+    @apply btn bg-white text-ink ring-1 ring-ink-line hover:bg-cream-sunk;
+  }
+
+  .btn-quiet {
+    @apply btn bg-cream-sunk text-ink-soft hover:text-ink;
+  }
+
+  .btn-sm {
+    @apply rounded-full px-3 py-1.5 text-xs font-semibold;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full bg-cream-sunk px-2.5 py-1 text-[11px] font-medium text-ink-soft;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-ink-line bg-white px-3.5 py-2.5 text-[15px] text-ink outline-none transition placeholder:text-ink-mute/70 focus:border-brand focus:ring-4 focus:ring-brand/10;
+  }
+
+  .label {
+    @apply mb-1.5 block text-[13px] font-semibold text-ink-soft;
+  }
+
+  /* 必填项标识：给 label 加 data-required 即自动追加红色星号 */
+  .label[data-required]::after {
+    content: "*";
+    @apply ml-0.5 text-brand;
+  }
+
+  .hint {
+    @apply text-xs leading-relaxed text-ink-mute;
+  }
+
+  .section-title {
+    @apply text-[15px] font-bold tracking-tight text-ink;
+  }
+
+  .tab-pill {
+    @apply shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-semibold text-ink-mute transition;
+  }
+
+  .tab-pill-active {
+    @apply bg-ink text-white;
+  }
+}
+
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
+/* 首页消息栏轮播：只渲染当前一条，靠这一下淡入上移把「换了一条」说清楚 */
+.ticker-line {
+  animation: ticker-in 0.45s ease-out;
+}
+
+@keyframes ticker-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-line {
+    animation: none;
+  }
+}
+
+/* 富文本正文编辑器（RichTextEditor）：空内容时显占位文案，换行对齐展示侧 pre-wrap 习惯 */
+.rte {
+  white-space: pre-wrap;
+  word-break: break-word;
+  outline: none;
+}
+
+.rte:empty::before {
+  content: attr(data-placeholder);
+  color: #8b8178;
+}
+
+.rte img {
+  max-width: 100%;
+  border-radius: 12px;
+  margin: 6px 0;
+}
+
+/* 帖子详情富文本渲染（净化后的 HTML）：排版与站内卡片风格对齐 */
+.post-rich {
+  word-break: break-word;
+}
+
+.post-rich p,
+.post-rich div {
+  margin: 0 0 6px;
+}
+
+.post-rich p:last-child,
+.post-rich div:last-child {
+  margin-bottom: 0;
+}
+
+.post-rich a {
+  color: #ff5a1f;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.post-rich img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  margin: 8px 0;
+  display: block;
+}
+
+.post-rich ul,
+.post-rich ol {
+  padding-left: 1.4rem;
+  margin: 4px 0 8px;
+}
+
+.post-rich ul {
+  list-style: disc;
+}
+
+.post-rich ol {
+  list-style: decimal;
+}
+
+.post-rich blockquote {
+  border-left: 3px solid #e7dfd6;
+  padding-left: 10px;
+  margin: 8px 0;
+  color: #4a433e;
+}

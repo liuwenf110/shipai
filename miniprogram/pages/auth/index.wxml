@@ -1,0 +1,1 @@
+<view class="tip">{{tip}}</view>

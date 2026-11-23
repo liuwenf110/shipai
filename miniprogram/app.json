@@ -1,0 +1,11 @@
+{
+  "pages": ["pages/webview/index", "pages/auth/index", "pages/share/index"],
+  "window": {
+    "navigationBarTitleText": "上十派",
+    "navigationBarBackgroundColor": "#1A1A1A",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#FDFDFD"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

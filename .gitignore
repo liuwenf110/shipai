@@ -1,0 +1,44 @@
+# ── 依赖与构建产物 ─────────────────────────────
+node_modules
+.next
+out
+build
+.runtime
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# ── 本地运行日志与临时输出 ─────────────────────
+*.log
+.chk*.out
+.btn.out
+.front.out
+.clip.out
+.find_btn.applescript
+.DS_Store
+
+# ── 密钥与本地数据：绝不入库 ───────────────────
+# .env 内含 SMTP_PASS / WX_SECRET / WX_PUSH_TOKEN 等真实凭据，只提交 .env.example 模板
+.env
+.env.*
+!.env.example
+prisma/*.db*
+public/uploads/*
+!public/uploads/.gitkeep
+
+# ── 测试与取证产物 ────────────────────────────
+# docs/_test 里的 chrome-profile-* 是浏览器登录态（含会话 Cookie），SQL/截图/JSON 是一次性夹具
+docs/_test/
+
+# ── 素材打包与 IDE/agent 本地缓存 ─────────────
+*.zip
+.qoder/
+miniprogram/project.private.config.json
+
+# 运营脚本生成的宣传图与小程序码（非代码，合计约 25MB）
+# 需要归档这些素材时请走网盘/对象存储，勿进代码仓库
+海报-分派*/
+上十派宣传海报.png
+成长派宣传海报.png
+上十派小程序码.jpg
+上十派分派海报.zip
+preview_qr_*.png
