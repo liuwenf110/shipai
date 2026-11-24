@@ -27,8 +27,15 @@ import { audienceOfUserOrAdmin, canAccessFaction } from "@/lib/scope";
 import { looksRichText, prepareRichTextForRender, richTextToPlainText, linkifyPlainText } from "@/lib/rich-text";
 import { formatDateTime, splitList } from "@/lib/utils";
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ ref?: string }>;
+}) {
   const { id } = await params;
+  const query = await searchParams;
   const post = await prisma.post.findUnique({
     where: { id },
     select: { title: true, content: true, factionId: true },
@@ -36,7 +43,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   // 富文本帖取剥标签后的摘要作标题，避免把 HTML 写进浏览器标签页
   const summary = post ? richTextToPlainText(post.content).slice(0, 16) : "";
   if (!post) return { title: "帖子" };
-  // 帖标跟随所属派隔离
+  // 分享链接直达（?ref=share）时跳过派隔隔离，保证外部用户能看到完整标题；
+  // 站内进仍按当前访客所属派隔离。
+  if (query.ref === "share") return { title: post.title ?? (summary || "帖子") };
   const metaUser = await getCurrentUser();
   const metaAudience = await audienceOfUserOrAdmin(metaUser);
   if (!(await canAccessFaction(post.factionId, metaAudience, metaUser?.id))) return { title: "帖子" };
@@ -48,7 +57,7 @@ export default async function PostPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; error?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; ref?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -84,9 +93,13 @@ export default async function PostPage({
   });
   if (!post) notFound();
 
-  // 帖子内容不单独定阵营，一律跟随它所属的派
+  // 帖子内容不单独定阵营，一律跟随它所属的派；?ref=share 时放行分享落地（链接持有者直接可看）
   const audience = await audienceOfUserOrAdmin(user);
-  if (!(await canAccessFaction(post.factionId, audience, user?.id))) notFound();
+  if (
+    query.ref !== "share" &&
+    !(await canAccessFaction(post.factionId, audience, user?.id))
+  )
+    notFound();
 
   // 评论文档附带作者认证身份（公司 + 在职/离职），同公司优先
   const initialComments = post.comments.map((comment) =>
