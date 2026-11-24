@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
+import { EmojiPicker } from "@/components/EmojiPicker";
 import { withBasePath } from "@/lib/base-path";
 import { cn } from "@/lib/utils";
 
@@ -255,6 +256,7 @@ export function RichTextEditor({
         <button type="button" aria-label="插入链接" className={toolClass} onClick={insertLink}>
           <Icon name="link" size={13} />
         </button>
+        <EmojiPicker onPick={(emoji) => exec("insertText", emoji)} align="left" compact />
         <button
           type="button"
           aria-label="插入图片"

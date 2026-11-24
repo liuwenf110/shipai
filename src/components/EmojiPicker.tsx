@@ -12,9 +12,12 @@ import { cn } from "@/lib/utils";
 export function EmojiPicker({
   onPick,
   align = "left",
+  compact = false,
 }: {
   onPick: (emoji: string) => void;
   align?: "left" | "right";
+  /** 紧凑模式：面板附在工具条里时按钮取 h-7 w-7，与侧边同高 */
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [activeKey, setActiveKey] = useState<string>(DEFAULT_EMOJI_GROUP);
@@ -39,7 +42,8 @@ export function EmojiPicker({
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "inline-flex h-9 w-9 items-center justify-center rounded-lg border text-[18px] leading-none transition",
+          "inline-flex items-center justify-center rounded-lg border leading-none transition",
+          compact ? "h-7 w-7 text-[14px]" : "h-9 w-9 text-[18px]",
           open
             ? "border-brand bg-brand-soft"
             : "border-ink-line bg-white hover:border-brand/60",
