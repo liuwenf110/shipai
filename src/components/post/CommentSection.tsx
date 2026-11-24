@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/Avatar";
@@ -8,6 +8,7 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { CompanyBadge } from "@/components/CompanyBadge";
 import { ConfirmSubmit } from "@/components/content/ConfirmSubmit";
 import { ReportButton } from "@/components/content/ReportButton";
+import { EmojiPicker } from "@/components/EmojiPicker";
 import { apiGet, apiPost, ApiClientError } from "@/lib/client";
 import { deleteOwnCommentAction } from "@/lib/actions/content";
 import type { MentionCandidate } from "@/lib/mention";
@@ -71,7 +72,30 @@ export function CommentSection({
   const [content, setContent] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const router = useRouter();
+
+  // 光标位置插入 emoji：存在 selectionStart 时插到光标处、后面自动补个空格，避免下一个字符顶在一起；
+  // 没聚焦时退化为末尾追加。插入后回写光标位置到 emoji 后一位。
+  const insertEmoji = (emoji: string) => {
+    const el = textareaRef.current;
+    const current = content;
+    if (!el) {
+      setContent(current.length ? `${current}${emoji} ` : `${emoji} `);
+      return;
+    }
+    const start = el.selectionStart ?? current.length;
+    const end = el.selectionEnd ?? current.length;
+    const caret = Math.max(0, Math.min(start, end));
+    const next = `${current.slice(0, caret)}${emoji} ${current.slice(end)}`;
+    setContent(next);
+    // 给 React 一帧刷新受控 value 后重新定位光标
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = caret + emoji.length + 1;
+      el.setSelectionRange(pos, pos);
+    });
+  };
 
   // 候选池按昵称长度降序，长名优先匹配避免前缀误高亮；一排最多放 12 人
   const chips = atCandidates.slice(0, 12);
@@ -173,6 +197,7 @@ export function CommentSection({
           ) : null}
           <div className="flex items-start gap-2">
             <textarea
+              ref={textareaRef}
               value={content}
               onChange={(event) => setContent(event.target.value)}
               rows={2}
@@ -184,6 +209,7 @@ export function CommentSection({
               }
               className="input flex-1 resize-none text-[13px]"
             />
+            <EmojiPicker onPick={insertEmoji} align="right" />
             <button
               type="submit"
               disabled={pending || !content.trim()}
