@@ -37,6 +37,26 @@ function linkifyPlainText(text: string): string {
 }
 
 /**
+ * 客户端粘贴预处理：与服务端白名单对齐，先剥射 script/style/on* 与 javascript: 链接，
+ * 保留基本排版标签（标题/列表/引用/链接/图/加粗斜体下划划掉），避免直接粘入时 XSS。
+ * 入库前服务端会再洗一道兼容旧行为。
+ */
+function sanitizePastedHtml(html: string): string {
+  let out = html
+    // 剥射不安全的块与行内属性
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<(script|style|meta|link|object|iframe|form|input|button|noscript)[\s\S]*?<\/\1>/gi, "")
+    .replace(/<\s*(\/?)\s*(font|table|thead|tbody|tr|td|th|figure|figcaption|video|audio|source|canvas|svg|path|use|defs|g)[^>]*>/gi, "<$1span>")
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\shref\s*=\s*["']\s*javascript:[^"']*["']/gi, ' href="#"');
+  // 射射 data- 属性避免无意义体积
+  out = out.replace(/\sdata-[\w-]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  // class/id 一律射掉，防止外部 CSS 影响主站样式
+  out = out.replace(/\s(class|id)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  return out;
+}
+
+/**
  * 轻量富文本正文编辑器（发帖/编辑帖共用）：
  * - contentEditable 承载正文，隐藏 textarea 同名提交 HTML 给 Server Action（服务端净化入库）；
  * - 粘贴截图/复制的图片自动上传并以内联 <img> 插入正文，无需再走配图选择器；
@@ -46,7 +66,7 @@ function linkifyPlainText(text: string): string {
 export function RichTextEditor({
   name,
   defaultValue = "",
-  placeholder = "写点什么…支持粘贴图片和链接",
+  placeholder = "写点什么…支持从网页/微信/Word 直接粘贴保留排版",
   minHeight = 88,
   onFocus,
   onChange,
@@ -127,6 +147,13 @@ export function RichTextEditor({
       imageFiles.forEach((file) => void insertImage(file));
       return;
     }
+    // 优先使用 text/html 保留拷过来的排版（标题/列表/加粗/颜色/链接），射掉脚本属性后插入
+    const htmlFragment = event.clipboardData.getData("text/html");
+    if (htmlFragment && /<\s*(h[1-6]|p|div|ul|ol|li|blockquote|pre|b|strong|i|em|u|s|strike|del|a|img|code|span|br|table)\b/i.test(htmlFragment)) {
+      event.preventDefault();
+      exec("insertHTML", sanitizePastedHtml(htmlFragment));
+      return;
+    }
     // 纯文本中自动识别 URL（含微信不带协议的 mp.weixin.qq.com 与 www. 开头）转为可点链接；其余走浏览器默认，入库前服务端净化
     const text = event.clipboardData.getData("text/plain");
     if (!text) return;
@@ -151,6 +178,14 @@ export function RichTextEditor({
     }
   }
 
+  /** 将当前选区包成指定标签（行内代码等）；无选区时插入一个占位例子方便用户接着写 */
+  function wrapSelection(tag: string, _left: string, _right: string) {
+    const selection = window.getSelection();
+    const text = selection?.toString() ?? "";
+    const inner = text || "代码";
+    exec("insertHTML", `<${tag}>${escapePlainText(inner)}</${tag}>`);
+  }
+
   const toolClass =
     "flex h-7 w-7 items-center justify-center rounded-lg text-[12px] font-black text-ink-soft hover:bg-cream-sunk";
 
@@ -169,16 +204,54 @@ export function RichTextEditor({
         onFocus={onFocus}
         onPaste={onPaste}
       />
-      <div className="flex items-center gap-1 border-t border-ink-line/60 px-2 py-1.5">
-        <button type="button" aria-label="加粗" className={toolClass} onClick={() => exec("bold")}>
+      <div className="flex flex-wrap items-center gap-1 border-t border-ink-line/60 px-2 py-1.5">
+        <select
+          aria-label="段落样式"
+          className="h-7 rounded-lg border border-ink-line/70 bg-white px-1.5 text-[11px] font-bold text-ink-soft hover:bg-cream-sunk"
+          onMouseDown={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (!v) return;
+            exec("formatBlock", v);
+            e.target.value = "";
+          }}
+          defaultValue=""
+        >
+          <option value="">样式</option>
+          <option value="h1">标题一</option>
+          <option value="h2">标题二</option>
+          <option value="h3">标题三</option>
+          <option value="p">正文</option>
+          <option value="blockquote">引用</option>
+          <option value="pre">代码块</option>
+        </select>
+        <span className="mx-0.5 h-4 w-px bg-ink-line/60" />
+        <button type="button" aria-label="加粗" className={cn(toolClass, "font-black")} onClick={() => exec("bold")}>
           B
         </button>
         <button type="button" aria-label="斜体" className={cn(toolClass, "italic")} onClick={() => exec("italic")}>
           I
         </button>
+        <button type="button" aria-label="下划线" className={cn(toolClass, "underline")} onClick={() => exec("underline")}>
+          U
+        </button>
+        <button type="button" aria-label="删除线" className={cn(toolClass, "line-through")} onClick={() => exec("strikeThrough")}>
+          S
+        </button>
+        <button type="button" aria-label="行内代码" className={cn(toolClass, "font-mono text-[10.5px]")} onClick={() => wrapSelection("code", "`", "`")}>
+          &lt;/&gt;
+        </button>
+        <span className="mx-0.5 h-4 w-px bg-ink-line/60" />
         <button type="button" aria-label="无序列表" className={toolClass} onClick={() => exec("insertUnorderedList")}>
           •
         </button>
+        <button type="button" aria-label="有序列表" className={cn(toolClass, "text-[10.5px]")} onClick={() => exec("insertOrderedList")}>
+          1.
+        </button>
+        <button type="button" aria-label="水平分割线" className={toolClass} onClick={() => exec("insertHTML", "<hr>")}>
+          ―
+        </button>
+        <span className="mx-0.5 h-4 w-px bg-ink-line/60" />
         <button type="button" aria-label="插入链接" className={toolClass} onClick={insertLink}>
           <Icon name="link" size={13} />
         </button>
@@ -189,6 +262,9 @@ export function RichTextEditor({
           onClick={() => fileRef.current?.click()}
         >
           <Icon name="image" size={14} />
+        </button>
+        <button type="button" aria-label="清除格式" className={cn(toolClass, "text-[10.5px]")} onClick={() => exec("removeFormat")}>
+          清除
         </button>
         <input
           ref={fileRef}
@@ -202,7 +278,7 @@ export function RichTextEditor({
           }}
         />
         <span className="ml-auto text-[10.5px] text-ink-mute">
-          {uploading ? "图片上传中…" : hint || "截图可直接粘贴"}
+          {uploading ? "图片上传中…" : hint || "支持图文混排粘贴"}
         </span>
       </div>
       {/* 真正随表单提交的字段：contentEditable 不是表单控件，值同步进这个隐藏域 */}
