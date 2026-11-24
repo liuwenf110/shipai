@@ -36,37 +36,38 @@ export function OtherFactionFeed({ posts }: { posts: OtherFactionPost[] }) {
               href={`/posts/${post.id}`}
               className="card flex flex-col gap-2 p-4 transition-shadow hover:shadow-float"
             >
-              {/* 头部：派图标 + 帖子标题，公告标在右侧 */}
-              <div className="flex items-center gap-2.5">
+              {/* 顶行：派图标 + 公告标 + 时间 */}
+              <div className="flex items-center gap-2">
                 <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[19px]"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[16px]"
                   style={{
                     backgroundImage: `linear-gradient(135deg, ${meta.from}, ${meta.to})`,
                   }}
                 >
                   {post.faction.emoji}
                 </span>
-                <p className="min-w-0 flex-1 truncate text-[13.5px] font-bold leading-snug text-ink">
-                  {post.title || richTextToPlainText(post.content).slice(0, 40)}
-                </p>
                 {post.kind === "ANNOUNCE" ? (
-                  <span className="shrink-0 rounded bg-ink px-1.5 py-0.5 text-[9px] font-bold text-white">
+                  <span className="rounded bg-ink px-1.5 py-0.5 text-[9px] font-bold text-white">
                     公告
                   </span>
-                ) : (
-                  <span className="shrink-0 text-[10px] text-ink-mute">{timeAgo(post.createdAt)}</span>
-                )}
+                ) : null}
+                <span className="ml-auto text-[10px] text-ink-mute">{timeAgo(post.createdAt)}</span>
               </div>
 
-              {/* 正文摘要：有标题时取内容前几行，无标题时已在上方展示 */}
+              {/* 标题 */}
+              <p className="line-clamp-2 text-[14px] font-bold leading-snug text-ink">
+                {post.title || richTextToPlainText(post.content).slice(0, 60)}
+              </p>
+
+              {/* 正文摘要：有标题时展示内容前几行 */}
               {post.title ? (
                 <p className="line-clamp-2 text-[12px] leading-relaxed text-ink-soft">
                   {richTextToPlainText(post.content)}
                 </p>
               ) : null}
 
-              {/* 底部：左列作者与互动数，右列固定「招募中」角标 */}
-              <div className="mt-auto flex items-end justify-between gap-2 border-t border-ink-line/60 pt-2">
+              {/* 底部：左列作者与互动数，右列「招募中」角标 */}
+              <div className="mt-auto flex items-center justify-between gap-2 border-t border-ink-line/60 pt-2">
                 <div className="flex min-w-0 items-center gap-2.5 text-[10.5px] text-ink-mute">
                   <span className="max-w-[90px] truncate">{post.author.nickname}</span>
                   <span className="flex items-center gap-0.5">
