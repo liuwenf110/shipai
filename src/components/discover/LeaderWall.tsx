@@ -21,20 +21,23 @@ export function LeaderWall({ rows }: { rows: LeaderRow[] }) {
         <h2 className="flex items-center gap-1.5 text-[16px] font-black tracking-tight text-ink">
           <Icon name="users" size={16} /> 派主墙
         </h2>
-        <span className="text-[11px] text-ink-mute">每个派的主理人，先认人再入派</span>
+        <span className="hidden text-[11px] text-ink-mute sm:inline">每个派的主理人，先认人再入派</span>
+        <span className="text-[11px] text-ink-mute sm:hidden">← 左右滑动 →</span>
       </div>
 
-      {/* 横向滚动：负 margin 让首尾卡片贴屏边，滚动条收掉以免挤占高度 */}
-      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {rows.map((faction) => {
-          const leader = faction.leader;
-          const meta = categoryOf(faction.category);
-          return (
-            <Link
-              key={faction.id}
-              href={`/factions/${faction.slug}`}
-              className="group card block w-[200px] shrink-0 transition hover:-translate-y-0.5 hover:shadow-float"
-            >
+      {/* 外层包裹定位右侧渐变遮罩作为滑动提示 */}
+      <div className="relative">
+        {/* 横向滚动：负 margin 让首尾卡片贴屏边，滚动条收掉以免挤占高度；手机端上 snap 保证卡片对齐 */}
+        <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {rows.map((faction) => {
+            const leader = faction.leader;
+            const meta = categoryOf(faction.category);
+            return (
+              <Link
+                key={faction.id}
+                href={`/factions/${faction.slug}`}
+                className="group card block w-[200px] shrink-0 snap-start transition hover:-translate-y-0.5 hover:shadow-float"
+              >
               <div
                 className="relative flex h-12 items-start justify-between overflow-hidden rounded-t-xl px-3 pt-2"
                 style={{ backgroundImage: `linear-gradient(135deg, ${meta.from}, ${meta.to})` }}
@@ -56,7 +59,7 @@ export function LeaderWall({ rows }: { rows: LeaderRow[] }) {
                 <p className="mt-1.5 truncate text-center text-[13px] font-black leading-tight text-ink">
                   {leader.nickname}
                 </p>
-                <p className="mt-2 line-clamp-4 text-center text-[11px] leading-relaxed text-ink-soft">
+                <p className="mt-2 line-clamp-3 text-center text-[11px] leading-relaxed text-ink-soft">
                   {leader.bio?.trim() || "还没写简介，进派聊聊就知道。"}
                 </p>
 
@@ -67,6 +70,9 @@ export function LeaderWall({ rows }: { rows: LeaderRow[] }) {
             </Link>
           );
         })}
+        </div>
+        {/* 右侧渐变遮罩：提示用户还有内容可向左滑 */}
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#FBF7F2] to-transparent sm:hidden" />
       </div>
     </section>
   );
