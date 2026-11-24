@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/Section";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ConfirmSubmit } from "@/components/content/ConfirmSubmit";
 import { ActivityForm } from "@/components/faction/ActivityForm";
-import { FactionShareButton } from "@/components/faction/FactionShareButton";
+import { PostShareButton } from "@/components/post/PostShareButton";
 import { Disclosure } from "@/components/Disclosure";
 import {
   closeActivityAction,
@@ -28,15 +28,20 @@ import { capacityLabel, cn, formatActivityTime, splitList, timeAgo, toDateTimeLo
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; id: string }>;
+  searchParams: Promise<{ ref?: string }>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
   const activity = await prisma.activity.findUnique({
     where: { id },
     select: { title: true, factionId: true },
   });
   if (!activity) return { title: "活动" };
+  // 分享链接直达（?ref=share）时跳过派隔离，保证外部/未登录用户看到完整活动标题
+  if (query.ref === "share") return { title: activity.title ?? "活动" };
   // 活动标题跟随所属派隔离，猜 id 也进不了浏览历史
   const user = await getCurrentUser();
   const audience = await audienceOfUserOrAdmin(user);
@@ -80,7 +85,12 @@ export default async function ActivityPage({
   if (!activity || activity.faction.slug !== slug) notFound();
 
   const audience = await audienceOfUserOrAdmin(user);
-  if (!(await canAccessFaction(activity.factionId, audience, user?.id))) notFound();
+  // ?ref=share 时放行分享落地，链接持有者直接可看不受派隔限制；站内进仍按派隔离
+  if (
+    query.ref !== "share" &&
+    !(await canAccessFaction(activity.factionId, audience, user?.id))
+  )
+    notFound();
 
   const [membership, mySignup, verifiedCount, groupChat] = await Promise.all([
     user
@@ -150,14 +160,14 @@ export default async function ActivityPage({
               管理活动 →
             </Link>
           ) : null}
-          {/* 对外分享只向已认证老同事开放，未认证的人不渲染入口 */}
-          {verifiedCount > 0 ? (
-            <FactionShareButton
-              slogan={shareSlogan}
-              scope="activity"
-              image={coverImages[0]}
-            />
-          ) : null}
+          {/* 整页分享：与帖子同机制，一次点击即唤起系统/微信原生分享面板，任何人可分享 */}
+          <PostShareButton
+            title={shareSlogan}
+            path={path}
+            image={coverImages[0]}
+            summary={activity.description.slice(0, 40)}
+            label="整页分享这场活动"
+          />
         </div>
       </div>
 

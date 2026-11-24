@@ -48,15 +48,18 @@ export function PostShareButton({
   path,
   image,
   summary,
+  label = "整页分享",
 }: {
   /** 分享卡片标题：一般为帖标 */
   title: string;
-  /** 帖子站内干净路径（不含部署前缀），如 /posts/xxx */
+  /** 站内干净路径（不含部署前缀），如 /posts/xxx、/factions/xx/activities/yy */
   path: string;
   /** 可选封面图：站内相对路径或 https 绝对地址；组件内补成小程序可拉的绝对 https */
   image?: string;
   /** 可选一句话摘要：给系统 share sheet 的 text 字段用 */
   summary?: string;
+  /** 按钮 aria-label：默认“整页分享”，分享活动/其他页时可自定义 */
+  label?: string;
 }) {
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | null>(null);
@@ -141,7 +144,7 @@ export function PostShareButton({
     <span className="relative inline-flex items-center gap-1.5">
       <button
         type="button"
-        aria-label="整页分享这条帖子"
+        aria-label={label}
         onClick={() => void onShare()}
         className="flex items-center gap-1 text-[11.5px] font-semibold text-ink-mute transition hover:text-brand"
       >
