@@ -90,10 +90,11 @@ export default async function DiscoverPage({
       where: { status: "ACTIVE", leaderId: { not: null }, ...factionScopeWhere(audience) },
       include: { leader: { select: PUBLIC_USER } },
     }),
-    // 派新鲜事：所有可见派最新发布帖子，上限50条（首屏10条 + ShowMore 展开剩余）
+    // 派新鲜事：所有可见派最新发布帖子，排除首页公开招募帖，上限50条（首屏10条 + ShowMore 展开剩余）
     prisma.post.findMany({
       where: {
         status: "PUBLISHED",
+        recruit: false,
         faction: { status: "ACTIVE", ...factionScopeWhere(audience) },
       },
       include: { author: { select: IDENTIFIED_USER }, faction: { include: { company: true } } },
