@@ -49,6 +49,7 @@ export function PostShareButton({
   image,
   summary,
   label = "整页分享",
+  kind = "post",
 }: {
   /** 分享卡片标题：一般为帖标 */
   title: string;
@@ -60,6 +61,8 @@ export function PostShareButton({
   summary?: string;
   /** 按钮 aria-label：默认“整页分享”，分享活动/其他页时可自定义 */
   label?: string;
+  /** 小程序中转页卡片预览时的标签页标题，只影响展示文案 */
+  kind?: "post" | "activity" | "faction";
 }) {
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | null>(null);
@@ -107,19 +110,40 @@ export function PostShareButton({
   async function onShare() {
     const { url, mpPath, imageAbs } = buildPayload();
 
-    // 小程序 web-view：无法直接调起微信原生分享，postMessage 让壳准备好整页卡片 + 轻提示引导
+    // 小程序 web-view：无法直接调起微信原生分享面板，H5 能做的最直达动作就是 navigateTo 原生中转页，
+    // 中转页里一个 open-type="share" 大按钮一下就拉到微信原生分享面板（卡片标题/落地/封面三要素直接传参）
     if (inMiniProgramWebView()) {
-      const payload = { type: "share", title, path: mpPath, image: imageAbs };
-      const post = () => window.wx?.miniProgram?.postMessage({ data: payload });
-      if (window.wx?.miniProgram) {
-        post();
-      } else {
-        const script = document.createElement("script");
-        script.src = "https://res.wx.qq.com/open/js/jweixin-1.6.0.js";
-        script.onload = post;
-        document.head.appendChild(script);
+      const goto = () => {
+        const q = new URLSearchParams();
+        q.set("title", title);
+        q.set("path", mpPath);
+        if (imageAbs) q.set("image", imageAbs);
+        q.set("kind", kind);
+        window.wx?.miniProgram?.navigateTo({ url: `/pages/share/index?${q.toString()}` });
+      };
+      if (window.wx?.miniProgram?.navigateTo) {
+        goto();
+        return;
       }
-      showToast("已准备整页分享，点右上角「···」→ 发送给朋友");
+      // jweixin 未注入时先懒加载，加载完立刻跳，避免需用户重一次点
+      const payload = { type: "share", title, path: mpPath, image: imageAbs };
+      const script = document.createElement("script");
+      script.src = "https://res.wx.qq.com/open/js/jweixin-1.6.0.js";
+      script.onload = () => {
+        if (window.wx?.miniProgram?.navigateTo) goto();
+        else {
+          window.wx?.miniProgram?.postMessage({ data: payload });
+          showToast("已准备分享，点右上角「···」→ 发送给朋友");
+        }
+      };
+      document.head.appendChild(script);
+      return;
+    }
+
+    // 微信内置浏览器（非小程序）：navigator.share 不会拉到微信自己的面板，
+    // 只能引导用户走右上角菜单；同时 OG 卡片已写入 HTML head 保证富卡片。
+    if (/MicroMessenger/i.test(window.navigator.userAgent)) {
+      showToast("点右上角「···」→ 发送给朋友");
       return;
     }
 

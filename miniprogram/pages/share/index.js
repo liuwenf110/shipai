@@ -7,7 +7,7 @@ Page({
     // H5 站内干净路径（不含部署前缀），壳自己与 H5_BASE 拼接
     h5path: "",
     image: "",
-    // 分享对象类型：activity 活动 | faction 兴趣派，只影响提示文案
+    // 分享对象类型：activity 活动 | faction 兴趣派 | post 帖子，只影响提示文案
     kind: "activity",
   },
   onLoad(query) {

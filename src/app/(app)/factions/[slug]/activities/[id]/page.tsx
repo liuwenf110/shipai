@@ -187,6 +187,7 @@ export default async function ActivityPage({
             image={coverImages[0]}
             summary={activity.description.slice(0, 40)}
             label="整页分享这场活动"
+            kind="activity"
           />
         </div>
       </div>
