@@ -27,14 +27,14 @@ export function FactionNews({
         <>
           <div className="space-y-3">
             {visible.map((post) => (
-              <PostCard key={post.id} post={post} liked={Boolean(post.liked)} redirectTo="/discover" />
+              <PostCard key={post.id} post={post} liked={Boolean(post.liked)} redirectTo="/discover" compact />
             ))}
           </div>
           {extra.length ? (
             <ShowMore count={extra.length}>
               <div className="mt-3 space-y-3">
                 {extra.map((post) => (
-                  <PostCard key={post.id} post={post} liked={Boolean(post.liked)} redirectTo="/discover" />
+                  <PostCard key={post.id} post={post} liked={Boolean(post.liked)} redirectTo="/discover" compact />
                 ))}
               </div>
             </ShowMore>

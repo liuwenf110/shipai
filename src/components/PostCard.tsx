@@ -21,6 +21,7 @@ export function PostCard({
   liked = false,
   showFaction = true,
   showAuthorCompany = true,
+  compact = false,
 }: {
   post: PostCardData;
   liked?: boolean;
@@ -29,6 +30,8 @@ export function PostCard({
   showFaction?: boolean;
   /** 是否展示作者认证公司（仅公司名，未认证显示「未认证」）；全站默认展示 */
   showAuthorCompany?: boolean;
+  /** 紧凑模式：缩小配图高度与文本行数，用于发现页列表 */
+  compact?: boolean;
 }) {
   const meta = categoryOf(post.faction.category);
   // 库里存的是 /uploads/xxx 相对路径；生产挂在 /shipai 子路径下，渲染前必须补前缀，否则 nginx 不转发到应用导致破图
@@ -87,7 +90,7 @@ export function PostCard({
             {post.title}
           </h3>
         ) : null}
-        <p className="line-clamp-4 whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink-soft">
+        <p className={`whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink-soft ${compact ? "line-clamp-2" : "line-clamp-4"}`}>
           {summary}
         </p>
         {cover ? (
@@ -96,7 +99,7 @@ export function PostCard({
             <img
               src={cover}
               alt="帖子图片"
-              className="max-h-64 w-full object-cover"
+              className={`w-full object-cover ${compact ? "max-h-28 sm:max-h-36" : "max-h-64"}`}
               style={{ background: `linear-gradient(135deg, ${meta.from}, ${meta.to})` }}
             />
           </div>
