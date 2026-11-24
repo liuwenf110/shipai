@@ -244,7 +244,11 @@ export default async function AdminUserDetailPage({
                     >
                       {item.company.logoText}
                     </span>
-                    <span className="text-[12px] font-bold text-ink">{item.company.shortName}</span>
+                    <span className="text-[12px] font-bold text-ink">
+                      {item.company.scope === "OUTSIDER"
+                        ? (item.employerName ?? "非大厂认证")
+                        : item.company.shortName}
+                    </span>
                     <Badge tone="mute">
                       {EMPLOYMENT_KIND[item.kind as keyof typeof EMPLOYMENT_KIND]?.label}
                     </Badge>

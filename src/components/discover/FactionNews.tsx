@@ -1,35 +1,45 @@
-import { FeedStream, type FeedSlot } from "@/components/home/FeedStream";
+import { PostCard } from "@/components/PostCard";
 import { SectionHeader, EmptyState } from "@/components/Section";
+import { ShowMore } from "@/components/ShowMore";
 import type { PostJson } from "@/lib/revive";
 
+const NEWS_VISIBLE = 10; // 首屏展示条数，其余折叠在「更多」里
+
 /**
- * 发现页「派新鲜事」：原首页的派内动态流整体迁移至此。
- * 首屏服务端只渲染 10 条，其余通过 FeedStream 的 /api/v1/feed 分页与「更多」补出；
- * 本派未开始活动由服务端预渲染成插槽混排（活动卡含表单，是 Server Component）。
+ * 发现页「派新鲜事」：展示所有可见派的最新发布帖子。
+ * 首屏服务端渲染前 10 条，超出部分由 ShowMore 静态展开（内容已在服务端渲染，无需再发 API）。
  */
 export function FactionNews({
   posts,
-  likedIds,
-  activitySlots,
-  hasMore,
   emptyAction,
 }: {
   posts: PostJson[];
-  likedIds: string[];
-  /** 服务端渲染好的活动卡插槽（at = 插在第几条帖子之前） */
-  activitySlots: FeedSlot[];
-  hasMore: boolean;
-  /** 一条帖子都没有时的引导（入派/去发现兴趣派） */
+  /** 一条帖子都没有时的引导 */
   emptyAction: { label: string; href: string };
 }) {
-  const withLiked = posts.map((post) => ({ ...post, liked: likedIds.includes(post.id) }));
+  const visible = posts.slice(0, NEWS_VISIBLE);
+  const extra = posts.slice(NEWS_VISIBLE);
 
   return (
     <section className="mx-auto max-w-5xl px-4 pt-5">
-      <SectionHeader title="派新鲜事" desc="你加入的派里，大家正在聊" />
-      {withLiked.length || activitySlots.length ? (
-        // pageSize=10 与首屏条数对齐：「更多」加载的每页也是 10 条
-        <FeedStream initialPosts={withLiked} initialHasMore={hasMore} pageSize={10} redirectTo="/discover" activitySlots={activitySlots} />
+      <SectionHeader title="派新鲜事" desc="各派里正在聊的最新话题" />
+      {visible.length ? (
+        <>
+          <div className="space-y-3">
+            {visible.map((post) => (
+              <PostCard key={post.id} post={post} liked={Boolean(post.liked)} redirectTo="/discover" />
+            ))}
+          </div>
+          {extra.length ? (
+            <ShowMore count={extra.length}>
+              <div className="mt-3 space-y-3">
+                {extra.map((post) => (
+                  <PostCard key={post.id} post={post} liked={Boolean(post.liked)} redirectTo="/discover" />
+                ))}
+              </div>
+            </ShowMore>
+          ) : null}
+        </>
       ) : (
         <div className="card">
           <EmptyState

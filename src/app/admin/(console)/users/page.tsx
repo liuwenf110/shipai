@@ -183,26 +183,34 @@ export default async function AdminUsersPage({
                       {disabled && user.disabledReason ? ` · 禁用原因：${user.disabledReason}` : ""}
                     </p>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {user.employments.map((employment) => (
-                        <span
-                          key={employment.id}
-                          className="inline-flex items-center gap-1 rounded-full bg-cream px-2 py-0.5 text-[10px] font-medium text-ink-soft"
-                        >
+                      {user.employments.map((employment) => {
+                        // 非大厂认证挂在系统占位公司行上，对运营展示 employerName 加职位
+                        const name =
+                          employment.company.scope === "OUTSIDER"
+                            ? (employment.employerName ?? employment.company.shortName)
+                            : employment.company.shortName;
+                        return (
                           <span
-                            className="flex h-3 w-3 items-center justify-center rounded-[3px] text-[6px] font-black text-white"
-                            style={{ background: employment.company.color }}
+                            key={employment.id}
+                            className="inline-flex items-center gap-1 rounded-full bg-cream px-2 py-0.5 text-[10px] font-medium text-ink-soft"
                           >
-                            {employment.company.logoText}
+                            <span
+                              className="flex h-3 w-3 items-center justify-center rounded-[3px] text-[6px] font-black text-white"
+                              style={{ background: employment.company.color }}
+                            >
+                              {employment.company.logoText}
+                            </span>
+                            {name}
+                            {EMPLOYMENT_KIND[employment.kind as keyof typeof EMPLOYMENT_KIND]?.short}
+                            {employment.title ? ` \u00b7 ${employment.title}` : ""}
+                            {employment.status === "VERIFIED"
+                              ? " ✓"
+                              : employment.status === "PENDING"
+                                ? " · 审核中"
+                                : " · 未通过"}
                           </span>
-                          {employment.company.shortName}
-                          {EMPLOYMENT_KIND[employment.kind as keyof typeof EMPLOYMENT_KIND]?.short}
-                          {employment.status === "VERIFIED"
-                            ? " ✓"
-                            : employment.status === "PENDING"
-                              ? " · 审核中"
-                              : " · 未通过"}
-                        </span>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

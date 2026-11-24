@@ -167,6 +167,11 @@ export default async function MePage({
               const status =
                 EMPLOYMENT_STATUS[employment.status as keyof typeof EMPLOYMENT_STATUS] ??
                 EMPLOYMENT_STATUS.PENDING;
+              // 非大厂认证挂在系统占位公司行上，对用户只展示自报的 employerName
+              const displayName =
+                employment.company.scope === "OUTSIDER"
+                  ? (employment.employerName ?? "非大厂认证")
+                  : employment.company.name;
               return (
                 <div key={employment.id} className="card flex items-center gap-3 p-3">
                   <span
@@ -176,7 +181,7 @@ export default async function MePage({
                     {employment.company.logoText}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[12.5px] font-bold text-ink">{employment.company.name}</p>
+                    <p className="truncate text-[12.5px] font-bold text-ink">{displayName}</p>
                     <p className="text-[10.5px] text-ink-mute">
                       {EMPLOYMENT_KIND[employment.kind as keyof typeof EMPLOYMENT_KIND]?.label}
                       {employment.title ? ` · ${employment.title}` : ""}
