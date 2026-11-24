@@ -69,10 +69,31 @@ export default async function FactionPage({
   const audience = await audienceOfUserOrAdmin(user);
   const faction = await prisma.faction.findUnique({
     where: { slug },
-    // 用户关系一律收敛 PUBLIC_USER，避免 flight 载荷携带 passwordHash/email
-    include: { company: true, leader: { select: PUBLIC_USER } },
+    // 用户关系一律收敛 PUBLIC_USER，避免 flight 载荷携带 passwordHash/email；派主额外附 employments 用于头部信息栏展示公司/在职身份
+    include: {
+      company: true,
+      leader: {
+        select: {
+          ...PUBLIC_USER,
+          employments: {
+            where: { status: "VERIFIED" },
+            select: { companyId: true, kind: true, company: { select: { shortName: true } } },
+          },
+        },
+      },
+    },
   });
   if (!faction) notFound();
+  // 拆下 leader.employments 避免全量页面传递，只为头部派主卡派生一个 identity
+  const leaderWithIdentity = faction.leader
+    ? {
+        ...faction.leader,
+        identity: pickUserIdentity(
+          faction.leader.employments as { companyId: string; kind: string; company: { shortName: string } }[],
+          faction.companyId,
+        ),
+      }
+    : null;
   // 阵营不可见且本人不在派内 → 整页按不存在处理，派内动态 / 活动 / 成员名单 / 派主资料随页面一并不可达
   if (!(await canAccessFaction(faction.id, audience, user?.id))) notFound();
 
@@ -275,6 +296,35 @@ export default async function FactionPage({
               </div>
             </div>
           </div>
+
+          {/* 派主信息栏：有派主时展示头像/昵称/认证徒章/公司/简介，点头像或卡片到个人主页 */}
+          {leaderWithIdentity ? (
+            <Link
+              href={`/users/${leaderWithIdentity.id}`}
+              className="relative mt-3 flex items-center gap-2.5 rounded-2xl bg-white/70 px-3 py-2 backdrop-blur transition hover:bg-white/90"
+            >
+              <UserAvatar
+                id={leaderWithIdentity.id}
+                name={leaderWithIdentity.nickname}
+                color={leaderWithIdentity.avatarColor}
+                src={leaderWithIdentity.avatarImage}
+                size="md"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="truncate text-[13px] font-black text-ink">{leaderWithIdentity.nickname}</span>
+                  <Badge tone="brand">认证派主</Badge>
+                  {leaderWithIdentity.identity ? (
+                    <CompanyBadge identity={leaderWithIdentity.identity} showKind />
+                  ) : null}
+                </div>
+                <p className="mt-0.5 line-clamp-1 text-[11.5px] leading-relaxed text-ink/70">
+                  {leaderWithIdentity.bio?.trim() || "负责本派活动组织与内容治理"}
+                </p>
+              </div>
+              <span className="shrink-0 text-[11px] font-semibold text-ink/60">查看主页 →</span>
+            </Link>
+          ) : null}
 
           <div className="relative mt-4 flex items-end justify-between gap-3">
             <div className="flex items-center gap-4 text-ink/70">
