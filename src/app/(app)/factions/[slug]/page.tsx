@@ -315,7 +315,7 @@ export default async function FactionPage({
                   <span className="truncate text-[13px] font-black text-ink">{leaderWithIdentity.nickname}</span>
                   <Badge tone="brand">认证派主</Badge>
                   {leaderWithIdentity.identity ? (
-                    <CompanyBadge identity={leaderWithIdentity.identity} showKind />
+                    <CompanyBadge identity={leaderWithIdentity.identity} showKind={false} />
                   ) : null}
                 </div>
                 <p className="mt-0.5 line-clamp-1 text-[11.5px] leading-relaxed text-ink/70">
