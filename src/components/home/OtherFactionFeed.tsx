@@ -36,28 +36,20 @@ export function OtherFactionFeed({ posts }: { posts: OtherFactionPost[] }) {
               href={`/posts/${post.id}`}
               className="card flex flex-col gap-2 p-4 transition-shadow hover:shadow-float"
             >
-              {/* 顶行：派图标 + 公告标 + 时间 */}
-              <div className="flex items-center gap-2">
+              {/* 头部：派图标 + 帖子标题同行 */}
+              <div className="flex items-start gap-2.5">
                 <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[16px]"
+                  className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[16px]"
                   style={{
                     backgroundImage: `linear-gradient(135deg, ${meta.from}, ${meta.to})`,
                   }}
                 >
                   {post.faction.emoji}
                 </span>
-                {post.kind === "ANNOUNCE" ? (
-                  <span className="rounded bg-ink px-1.5 py-0.5 text-[9px] font-bold text-white">
-                    公告
-                  </span>
-                ) : null}
-                <span className="ml-auto text-[10px] text-ink-mute">{timeAgo(post.createdAt)}</span>
+                <p className="line-clamp-2 text-[14px] font-bold leading-snug text-ink">
+                  {post.title || richTextToPlainText(post.content).slice(0, 60)}
+                </p>
               </div>
-
-              {/* 标题 */}
-              <p className="line-clamp-2 text-[14px] font-bold leading-snug text-ink">
-                {post.title || richTextToPlainText(post.content).slice(0, 60)}
-              </p>
 
               {/* 正文摘要：有标题时展示内容前几行 */}
               {post.title ? (
@@ -78,6 +70,10 @@ export function OtherFactionFeed({ posts }: { posts: OtherFactionPost[] }) {
                     <Icon name="message" size={11} />
                     {post.commentCount}
                   </span>
+                  <span>{timeAgo(post.createdAt)}</span>
+                  {post.kind === "ANNOUNCE" ? (
+                    <span className="rounded bg-ink px-1 py-0.5 text-[9px] font-bold text-white">公告</span>
+                  ) : null}
                 </div>
                 <span className="shrink-0 rounded-full bg-brand px-2.5 py-1 text-[10px] font-black tracking-wide text-white shadow-sm">
                   招募中
