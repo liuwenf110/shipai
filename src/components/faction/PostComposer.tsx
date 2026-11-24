@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useEffect, useActionState, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Notice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -26,14 +26,35 @@ export function PostComposer({
   // 正文与标题受控：发帖失败时不清空，用户直接改完再发
   const form = useFormValues({ title: "", content: "" });
   const [expanded, setExpanded] = useState(false);
-  const [imageName, setImageName] = useState("");
+  // 配图支持多张：最多 9 张，与后端上限对齐
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const MAX_IMAGES = 9;
+
+  function onImagePick(event: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(event.target.files ?? []);
+    const merged = [...imageFiles];
+    for (const f of picked) {
+      if (merged.length >= MAX_IMAGES) break;
+      if (!merged.some((x) => x.name === f.name && x.size === f.size && x.lastModified === f.lastModified)) {
+        merged.push(f);
+      }
+    }
+    setImageFiles(merged);
+    // 重接 input 为剩余未选文件，避免同一个文件无法重复添加；回退时保留当前已选列表
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  }
+
+  function removeImage(index: number) {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+  }
 
   return (
     <form
       action={formAction}
       className="card p-3.5"
       onSubmit={() => {
-        setImageName("");
+        setImageFiles([]);
       }}
     >
       <input type="hidden" name="factionId" value={factionId} />
@@ -62,19 +83,41 @@ export function PostComposer({
               <label
                 className={cn(
                   "flex cursor-pointer items-center gap-1 rounded-full bg-cream-sunk px-2.5 py-1 text-[11px] font-semibold text-ink-soft",
-                  imageName && "bg-brand-soft text-brand-dark",
+                  imageFiles.length > 0 && "bg-brand-soft text-brand-dark",
                 )}
               >
                 <Icon name="upload" size={13} />
-                {imageName ? "已选择图片" : state.error ? "配图需重新选择" : "配图"}
+                {imageFiles.length > 0
+                  ? `已选 ${imageFiles.length}/${MAX_IMAGES} 张`
+                  : state.error
+                    ? "配图需重新选择"
+                    : "配图（可多选）"}
                 <input
+                  ref={imageInputRef}
                   type="file"
                   name="image"
                   accept="image/*"
+                  multiple
                   className="hidden"
-                  onChange={(event) => setImageName(event.target.files?.[0]?.name ?? "")}
+                  onChange={onImagePick}
                 />
               </label>
+              {imageFiles.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setImageFiles([])}
+                  className="rounded-full px-2 py-1 text-[11px] font-semibold text-ink-mute hover:text-[#B42318]"
+                >
+                  清空配图
+                </button>
+              ) : null}
+              {imageFiles.length > 0 ? (
+                <div className="basis-full grid grid-cols-4 sm:grid-cols-6 md:grid-cols-9 gap-1.5">
+                  {imageFiles.map((file, i) => (
+                    <ImageThumb key={i} file={file} onRemove={() => removeImage(i)} />
+                  ))}
+                </div>
+              ) : null}
               {isLeader ? (
                 <>
                   <label className="flex cursor-pointer items-center gap-1 rounded-full bg-cream-sunk px-2.5 py-1 text-[11px] font-semibold text-ink-soft">
@@ -117,5 +160,31 @@ export function PostComposer({
         </div>
       </div>
     </form>
+  );
+}
+
+/** 已选图片缩略图预览，带删除小按钮 */
+function ImageThumb({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const [url, setUrl] = useState<string>("");
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+  return (
+    <div className="relative aspect-square overflow-hidden rounded-lg border border-ink-line/60 bg-cream-sunk">
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt={file.name} className="h-full w-full object-cover" />
+      ) : null}
+      <button
+        type="button"
+        aria-label="移除这张图"
+        onClick={onRemove}
+        className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink/70 text-[10px] font-black text-white"
+      >
+        ×
+      </button>
+    </div>
   );
 }

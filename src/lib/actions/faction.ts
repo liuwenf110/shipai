@@ -245,7 +245,9 @@ export async function createPostAction(
   const plainContent = richTextToPlainText(rawContent).trim();
   const content = looksRichText(rawContent) ? sanitizeRichText(rawContent) : rawContent.trim();
   const title = String(formData.get("title") ?? "").trim();
-  const image = formData.get("image");
+  // 配图支持多张：前端 input multiple + 同名字段 image 多份；上限 9 张，入库时逗号拼接
+  const imageEntries = formData.getAll("image").filter((x): x is File => x instanceof File && x.size > 0);
+  const MAX_IMAGES = 9;
   // 公众号文章/外站链接：入库前抓一份标题封面摘要作卡片快照
   const linkRaw = String(formData.get("link") ?? "").trim();
   const linkUrl = linkRaw ? normalizeLinkUrl(linkRaw) : null;
@@ -253,6 +255,9 @@ export async function createPostAction(
 
   if (plainContent.length < 2) return { error: "写点什么再发布吧" };
   if (plainContent.length > 2000) return { error: "内容请控制在 2000 字以内" };
+  if (imageEntries.length > MAX_IMAGES) {
+    return { error: `最多上传 ${MAX_IMAGES} 张配图` };
+  }
 
   const faction = await prisma.faction.findUnique({ where: { id: factionId } });
   if (!faction || faction.status !== "ACTIVE") return { error: "该派当前不可发帖" };
@@ -272,13 +277,16 @@ export async function createPostAction(
   if (!textCheck.ok) return { error: "内容涉及违规信息，请调整后重新发布" };
 
   let imagePath: string | null = null;
-  if (image instanceof File && image.size > 0) {
+  const savedPaths: string[] = [];
+  for (const file of imageEntries) {
     try {
-      imagePath = await saveProofFile(image);
+      const p = await saveProofFile(file);
+      if (p) savedPaths.push(p);
     } catch (error) {
       return { error: error instanceof Error ? error.message : "图片上传失败" };
     }
   }
+  if (savedPaths.length) imagePath = savedPaths.join(",");
 
   const linkSnapshot = linkUrl ? await buildLinkSnapshot(linkUrl) : null;
 
@@ -296,10 +304,15 @@ export async function createPostAction(
     },
   });
 
-  if (imagePath) await submitUserImageCheck(user.id, imagePath, { type: "POST", id: post.id });
+  if (imagePath) {
+    for (const p of savedPaths) {
+      await submitUserImageCheck(user.id, p, { type: "POST", id: post.id });
+    }
+  }
   // 正文内联图（粘贴上传）同样逐张媒体送检，回调命中后整帖隐藏
+  const savedPathSet = new Set(savedPaths);
   for (const richImage of extractRichImagePaths(content)) {
-    if (richImage !== imagePath) {
+    if (!savedPathSet.has(richImage)) {
       await submitUserImageCheck(user.id, richImage, { type: "POST", id: post.id });
     }
   }
