@@ -287,9 +287,7 @@ export default async function FactionPage({
                   </span>
                   {faction.company.name}
                 </span>
-                <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10.5px] font-bold text-ink/70 backdrop-blur">
-                  {meta.label}
-                </span>
+                {/* 不展示类目 label（如 HIKING→「徒步派」），因为与用户自创派名无关且易被误读为派名 */}
                 <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10.5px] font-bold text-ink/70 backdrop-blur">
                   {faction.joinMode === "APPROVAL" ? "需派主审批" : "自由加入"}
                 </span>
