@@ -141,7 +141,7 @@ export function FactionCard({
             ) : (
               <Badge tone="warn">招募派主</Badge>
             )}
-            <span className="ml-auto flex min-w-0 items-center gap-1.5">{identityGroup}</span>
+            <span className="ml-auto flex shrink-0 items-center gap-1.5">{identityGroup}</span>
             {linkable ? (
               <span className="ml-2 shrink-0 text-[11px] font-semibold text-brand opacity-0 transition group-hover:opacity-100">
                 进入 →
