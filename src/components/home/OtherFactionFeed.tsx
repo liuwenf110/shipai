@@ -12,15 +12,15 @@ export type OtherFactionPost = Post & {
   faction: Faction & { company: Company };
 };
 
-/** 首页「其他派新鲜事」：展示未加入的派里最新动态，引导用户去发现页逛派 */
+/** 首页「首页公开招募」：只展示帖主勾选了公开招募的帖（来自未加入的派），引导用户点进去入派 */
 export function OtherFactionFeed({ posts }: { posts: OtherFactionPost[] }) {
   if (!posts.length) return null;
 
   return (
     <div>
       <SectionHeader
-        title="其他派新鲜事"
-        desc="你还没加入的派，也在发生有意思的事"
+        title="首页公开招募"
+        desc="别的派在公开招人，点进去看详情就能加入"
         href="/discover"
         linkLabel="去逛逛"
       />
@@ -49,6 +49,9 @@ export function OtherFactionFeed({ posts }: { posts: OtherFactionPost[] }) {
                   <span>{post.faction.company.shortName}</span>
                   <span>·</span>
                   <span>{timeAgo(post.createdAt)}</span>
+                  <span className="rounded bg-brand-soft px-1 py-0.5 text-[9px] font-bold text-brand-dark">
+                    公开招募
+                  </span>
                   {post.kind === "ANNOUNCE" ? (
                     <span className="rounded bg-ink px-1 py-0.5 text-[9px] font-bold text-white">
                       公告

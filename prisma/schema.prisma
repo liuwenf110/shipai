@@ -274,6 +274,7 @@ model Post {
   linkImage    String? // 抓取到的原文封面（og:image，外部 URL）
   linkDesc     String? // 抓取到的原文摘要（og:description）
   pinned       Boolean  @default(false)
+  recruit      Boolean  @default(false) // 首页公开招募：派主勾选后本帖进入首页招募流，对未入派用户可见
   status       String   @default("PUBLISHED") // PUBLISHED | HIDDEN | DELETED
   likeCount    Int      @default(0)
   commentCount Int      @default(0)

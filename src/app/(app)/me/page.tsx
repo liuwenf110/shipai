@@ -58,6 +58,20 @@ export default async function MePage({
   const pendingMemberships = viewer.memberships.filter((item) => item.status === "PENDING");
   const upcomingSignups = mySignups.filter((item) => item.activity.status !== "CANCELLED");
 
+  // 待审批的加入申请提醒：原来挂在首页身份卡上，红框整块去掉后由「我管理的派」接住，
+  // 按派分组是为了让「去处理」直达真正有待审条目的那个派的管理台审批 tab
+  const pendingJoinGroups = managed.length
+    ? await prisma.factionMember.groupBy({
+        by: ["factionId"],
+        where: { factionId: { in: managed.map((item) => item.factionId) }, status: "PENDING" },
+        _count: { _all: true },
+      })
+    : [];
+  const pendingJoinCount = pendingJoinGroups.reduce((sum, item) => sum + item._count._all, 0);
+  const pendingJoinTarget = managed.find((item) =>
+    pendingJoinGroups.some((group) => group.factionId === item.factionId),
+  );
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-5">
       <QueryNotice ok={query.ok} error={query.error} className="mb-3" />
@@ -189,7 +203,23 @@ export default async function MePage({
       {/* 管理的派 */}
       {managed.length ? (
         <section className="mt-4">
-          <h2 className="mb-2 text-[15px] font-bold tracking-tight">我管理的派</h2>
+          <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+            <h2 className="text-[15px] font-bold tracking-tight">我管理的派</h2>
+            {pendingJoinCount && pendingJoinTarget ? (
+              <Link
+                href={`/factions/${pendingJoinTarget.faction.slug}/manage?tab=members`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-ink/10 px-3 py-1.5"
+              >
+                <Icon name="bell" size={12} className="shrink-0 text-[#D92B20]" />
+                <span className="text-[12.5px] font-black text-[#D92B20]">
+                  你有 {pendingJoinCount} 条加入申请待审批
+                </span>
+                <span className="flex items-center gap-0.5 text-[11px] font-bold text-[#D92B20]/80">
+                  去处理 <Icon name="right" size={12} />
+                </span>
+              </Link>
+            ) : null}
+          </div>
           <div className="space-y-2">
             {managed.map((item) => (
               <Link
@@ -207,9 +237,7 @@ export default async function MePage({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12.5px] font-bold text-ink">{item.faction.name}</p>
-                  <p className="text-[10.5px] text-ink-mute">
-                    {item.faction.company.shortName} · {item.faction.memberCount} 人
-                  </p>
+                  <p className="text-[10.5px] text-ink-mute">{item.faction.company.shortName}</p>
                 </div>
                 <Badge tone={item.role === "LEADER" ? "brand" : "violet"}>
                   {item.role === "LEADER" ? "派主" : "副派主"}
@@ -247,9 +275,7 @@ export default async function MePage({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12.5px] font-bold text-ink">{item.faction.name}</p>
-                  <p className="text-[10.5px] text-ink-mute">
-                    {item.faction.company.shortName} · {item.faction.memberCount} 人
-                  </p>
+                  <p className="text-[10.5px] text-ink-mute">{item.faction.company.shortName}</p>
                 </div>
                 {item.status === "PENDING" ? <Badge tone="warn">待审批</Badge> : null}
                 <Icon name="right" size={14} className="text-ink-mute" />

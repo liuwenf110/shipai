@@ -2,13 +2,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Company, Faction, Post } from "@prisma/client";
 import type { PublicUser } from "@/lib/revive";
-import { Avatar } from "@/components/Avatar";
 import { Badge } from "@/components/Badge";
 import { FeedStream } from "@/components/home/FeedStream";
 import { HomeTicker } from "@/components/home/HomeTicker";
 import { OtherFactionFeed, type OtherFactionPost } from "@/components/home/OtherFactionFeed";
 import { ActivityFeedCard, type ActivityFeedRow } from "@/components/faction/ActivityFeedCard";
-import { Icon } from "@/components/Icon";
 import { EmptyState, SectionHeader } from "@/components/Section";
 import type { Viewer } from "@/lib/auth";
 import type { HomeTickerItem } from "@/lib/home-ticker";
@@ -35,10 +33,8 @@ export function HomeFeed({
   myFactions,
   posts,
   likedIds,
-  recommended,
   otherPosts,
   activities,
-  pendingJoinCount,
   pendingLeaderFactionIds,
   feedHasMore,
   tickerItems,
@@ -47,12 +43,10 @@ export function HomeFeed({
   myFactions: { faction: FactionWithLeader; role: string; status: string }[];
   posts: FeedPost[];
   likedIds: string[];
-  recommended: FactionWithLeader[];
-  /** 未加入的派的最新动态（每派最多一条） */
+  /** 首页「公开招募」条目：未加入的派里被勾选了公开招募的帖（每派最多一条） */
   otherPosts: OtherFactionPost[];
   /** 自己所属派的未开始活动，混排进「派内新鲜事」 */
   activities: HomeActivityRow[];
-  pendingJoinCount: number;
   /** 已提交派主 / 副派主申请且仍在审核中的派，这些派不再重复引导申请 */
   pendingLeaderFactionIds: string[];
   /** 首页顶部消息栏的轮播条目（服务端按真实数据拼好，空数组则整条不渲染） */
@@ -60,7 +54,6 @@ export function HomeFeed({
   feedHasMore: boolean;
 }) {
   const activeFactions = myFactions.filter((item) => item.status === "ACTIVE");
-  const pendingFactions = myFactions.filter((item) => item.status === "PENDING");
   const leaderOf = myFactions.filter((item) => item.role === "LEADER" || item.role === "ADMIN");
 
   // 老派主认证入口：点击卡片尽量直达「派主认证申请页」——
@@ -133,148 +126,6 @@ export function HomeFeed({
       <HomeTicker items={tickerItems} />
       <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-4">
-          {/* 身份卡 */}
-          <div className="card relative overflow-hidden p-4">
-            <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-brand/10 blur-2xl" />
-            <div className="flex items-start gap-3">
-              <Avatar name={viewer.user.nickname} color={viewer.user.avatarColor} size="md" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <h1 className="truncate text-[16px] font-black tracking-tight">
-                    {viewer.user.nickname}
-                  </h1>
-                  {viewer.user.role === "ADMIN" ? <Badge tone="violet">运营</Badge> : null}
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  {viewer.verifiedEmployments.length ? (
-                    viewer.verifiedEmployments.map((employment) => (
-                      <span
-                        key={employment.id}
-                        className="inline-flex items-center gap-1 rounded-full bg-cream-sunk px-2 py-0.5 text-[10.5px] font-semibold text-ink-soft"
-                      >
-                        <span
-                          className="flex h-3.5 w-3.5 items-center justify-center rounded-[4px] text-[7px] font-black text-white"
-                          style={{ background: employment.company.color }}
-                        >
-                          {employment.company.logoText}
-                        </span>
-                        {employment.company.shortName} ·{" "}
-                        {EMPLOYMENT_KIND[employment.kind as keyof typeof EMPLOYMENT_KIND]?.short ??
-                          employment.kind}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="chip">
-                      <Icon name="shield" size={11} /> 尚未验证公司身份
-                    </span>
-                  )}
-                  {viewer.pendingEmployments.length ? (
-                    <Badge tone="warn">{viewer.pendingEmployments.length} 条认证待审核</Badge>
-                  ) : null}
-                </div>
-              </div>
-              <Link href="/me" className="flex shrink-0 items-center text-ink-mute hover:text-brand">
-                <Icon name="right" size={16} />
-              </Link>
-            </div>
-
-            {!viewer.isVerified ? (
-              <div className="mt-3.5 rounded-xl bg-[#FFF8EC] p-3 ring-1 ring-[#F5E3BF]">
-                <p className="text-[12px] font-bold text-[#8A5A00]">完成公司身份认证，才能加入兴趣派</p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-[#A0782E]">
-                  在职用企业邮箱收验证码，离职上传离职证明由运营审核。
-                </p>
-                <Link href="/verify" className="btn-primary btn-sm mt-2.5">
-                  去认证
-                  <Icon name="right" size={13} />
-                </Link>
-              </div>
-            ) : null}
-
-            {/* 待审批提醒：inline-flex 让底色只包住文案长度，淡黑底（ink 10%）+ 亮红粗字抢视线 */}
-            {pendingJoinCount > 0 ? (
-              <Link
-                href={leaderOf[0] ? `/factions/${leaderOf[0].faction.slug}/manage?tab=members` : "/me"}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-ink/10 px-3 py-1.5"
-              >
-                <Icon name="bell" size={12} className="shrink-0 text-[#D92B20]" />
-                <span className="text-[12.5px] font-black text-[#D92B20]">
-                  你有 {pendingJoinCount} 条加入申请待审批
-                </span>
-                <span className="flex items-center gap-0.5 text-[11px] font-bold text-[#D92B20]/80">
-                  去处理 <Icon name="right" size={12} />
-                </span>
-              </Link>
-            ) : null}
-          </div>
-
-          {/* 我的派 */}
-          <div>
-            <SectionHeader
-              title="我的派"
-              desc={
-                activeFactions.length
-                  ? `已加入 ${activeFactions.length} 个派${pendingFactions.length ? `，${pendingFactions.length} 个待审批` : ""}`
-                  : "找到同厂同好，从加入第一个派开始"
-              }
-              href="/discover"
-              linkLabel="发现更多"
-            />
-
-            {/* 手机适配：不再用横向拖动条，窄屏两列自动换行，一排放不下就折到下一排 */}
-            {activeFactions.length || pendingFactions.length ? (
-              <div className="grid grid-cols-2 gap-3">
-                {myFactions.map(({ faction, role, status }) => (
-                  <Link
-                    key={faction.id}
-                    href={`/factions/${faction.slug}`}
-                    className="card flex min-w-0 items-center gap-3 p-3 transition hover:shadow-float"
-                  >
-                    <span
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[20px]"
-                      style={{
-                        backgroundImage: `linear-gradient(135deg, ${categoryOf(faction.category).from}, ${categoryOf(faction.category).to})`,
-                      }}
-                    >
-                      {faction.emoji}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-1">
-                        <span className="truncate text-[13px] font-bold text-ink">{faction.name}</span>
-                        {role !== "MEMBER" ? (
-                          <Badge tone={role === "LEADER" ? "brand" : "violet"}>
-                            {role === "LEADER" ? "派主" : "副派主"}
-                          </Badge>
-                        ) : null}
-                      </span>
-                      <span className="mt-0.5 flex items-center gap-1 text-[10.5px] text-ink-mute">
-                        {faction.company.shortName} · {faction.memberCount} 人
-                        {status === "PENDING" ? (
-                          <span className="font-semibold text-[#9A6B00]">· 待审批</span>
-                        ) : null}
-                      </span>
-                    </span>
-                    <Icon name="right" size={14} className="shrink-0 text-ink-mute" />
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="card">
-                <EmptyState
-                  icon="compass"
-                  title="还没有加入任何派"
-                  desc={
-                    viewer.isVerified
-                      ? "去发现页看看同厂同事都在玩什么"
-                      : "完成身份认证后即可加入公司旗下的兴趣派"
-                  }
-                  actionLabel={viewer.isVerified ? "浏览兴趣派" : "去认证身份"}
-                  actionHref={viewer.isVerified ? "/discover" : "/verify"}
-                />
-              </div>
-            )}
-          </div>
-
           {/* 派内动态 */}
           <div>
             <SectionHeader title="派内新鲜事" desc="你加入的派里，大家正在聊" />
@@ -307,50 +158,6 @@ export function HomeFeed({
 
         {/* 右栏 */}
         <aside className="hidden space-y-4 md:block">
-          <div className="card p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-[13px] font-bold text-ink">推荐给你</h3>
-              <Link href="/discover" className="text-[11px] font-semibold text-ink-mute hover:text-brand">
-                更多
-              </Link>
-            </div>
-            <div className="mt-3 space-y-2">
-              {recommended.length ? (
-                recommended.slice(0, 4).map((faction) => (
-                  <Link
-                    key={faction.id}
-                    href={`/factions/${faction.slug}`}
-                    className="flex items-center gap-2.5 rounded-xl p-1.5 transition hover:bg-cream"
-                  >
-                    <span
-                      className="flex h-9 w-9 items-center justify-center rounded-lg text-[16px]"
-                      style={{
-                        backgroundImage: `linear-gradient(135deg, ${categoryOf(faction.category).from}, ${categoryOf(faction.category).to})`,
-                      }}
-                    >
-                      {faction.emoji}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[12px] font-bold text-ink">
-                        {faction.name}
-                      </span>
-                      <span className="block truncate text-[10px] text-ink-mute">
-                        {faction.leader ? `${faction.company.shortName} · ` : ""}{faction.memberCount} 人
-                      </span>
-                    </span>
-                    {!faction.leader ? <Badge tone="warn">招募派主</Badge> : null}
-                  </Link>
-                ))
-              ) : (
-                <p className="py-4 text-center text-[11px] text-ink-mute">暂无推荐</p>
-              )}
-            </div>
-            <Link href="/factions/new" className="btn-quiet btn-sm mt-3 w-full">
-              <Icon name="plus" size={14} />
-              组建一个新的派
-            </Link>
-          </div>
-
           <div className="card p-4">
             <h3 className="text-[13px] font-bold text-ink">身份认证进度</h3>
             <div className="mt-3 space-y-2.5">

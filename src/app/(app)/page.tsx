@@ -55,10 +55,6 @@ export default async function HomePage() {
     .filter((item) => item.status === "ACTIVE")
     .map((item) => item.factionId);
 
-  const managedFactionIds = memberships
-    .filter((item) => item.status === "ACTIVE" && item.role !== "MEMBER")
-    .map((item) => item.factionId);
-
   const joinedFactionIds = memberships.map((item) => item.factionId);
 
   const audience = viewer.audience;
@@ -66,11 +62,8 @@ export default async function HomePage() {
   const [
     posts,
     feedTotal,
-    pendingJoinCount,
-    recommendedCandidates,
     pendingLeaderApplications,
     otherFactionPosts,
-    activity,
     tickerItems,
     myActivities,
   ] = await Promise.all([
@@ -88,34 +81,15 @@ export default async function HomePage() {
     myFactionIds.length
       ? prisma.post.count({ where: { factionId: { in: myFactionIds }, status: "PUBLISHED" } })
       : Promise.resolve(0),
-    managedFactionIds.length
-      ? prisma.factionMember.count({
-          where: { factionId: { in: managedFactionIds }, status: "PENDING" },
-        })
-      : Promise.resolve(0),
-    prisma.faction.findMany({
-      where: {
-        AND: [
-          { status: "ACTIVE" },
-          { id: { notIn: myFactionIds } },
-          {
-            companyId: {
-              in: viewer.verifiedEmployments.map((item) => item.companyId),
-            },
-          },
-          factionAccessWhere(audience, viewer.user.id),
-        ],
-      },
-      include: { company: true, leader: { select: PUBLIC_USER } },
-    }),
     prisma.leaderApplication.findMany({
       where: { userId: viewer.user.id, status: "PENDING" },
       select: { factionId: true },
     }),
-    // 其他派新鲜事：未加入（含待审批）的派里最新动态，多取一些供按派去重
+    // 首页公开招募：只拿帖主勾选「首页公开招募」的帖（未加入（含待审批）的派），多取一些供按派去重
     prisma.post.findMany({
       where: {
         status: "PUBLISHED",
+        recruit: true,
         faction: {
           AND: [
             { status: "ACTIVE" },
@@ -131,7 +105,6 @@ export default async function HomePage() {
       orderBy: { createdAt: "desc" },
       take: 16,
     }),
-    loadFactionActivity(),
     // 顶部消息栏：老派主回归等真实动态，外加当前派主的待审批待办
     buildHomeTicker(viewer.user.id, audience),
     // 自己所属派的未开始活动：按临近开场优先取 3 条，混排进派内新鲜事
@@ -158,9 +131,6 @@ export default async function HomePage() {
         })
       : Promise.resolve([]),
   ]);
-
-  // 同公司推荐位：后台权重钉顶，其余按活跃度取前 4
-  const recommended = sliceFactions(recommendedCandidates, activity, 0, 4);
 
   // 首页「派主认证」卡片据此跳过已提交申请、仍在审核中的派
   const pendingLeaderFactionIds = pendingLeaderApplications.map((item) => item.factionId);
@@ -228,10 +198,8 @@ export default async function HomePage() {
       }))}
       posts={feedPosts}
       likedIds={likedIds}
-      recommended={recommended}
       otherPosts={otherFeedPosts}
       activities={activityRows.map((row) => ({ ...row, going: goingIds.has(row.activity.id) }))}
-      pendingJoinCount={pendingJoinCount}
       pendingLeaderFactionIds={pendingLeaderFactionIds}
       feedHasMore={feedTotal > posts.length}
       tickerItems={tickerItems}

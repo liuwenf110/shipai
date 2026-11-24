@@ -264,6 +264,8 @@ export async function createPostAction(
   const isManager = membership.role !== "MEMBER";
   const wantPinned = isManager && formData.get("pinned") === "1";
   const wantAnnounce = isManager && formData.get("announce") === "1";
+  // 首页公开招募不限角色（表单对全员渲染），这里只收正常发布的帖
+  const wantRecruit = formData.get("recruit") === "1";
 
   const textCheck = await checkUserText(user.id, `${title} ${plainContent} ${linkUrl ?? ""}`.trim(), 4);
   if (!textCheck.ok) return { error: "内容涉及违规信息，请调整后重新发布" };
@@ -289,6 +291,7 @@ export async function createPostAction(
       ...(linkSnapshot ?? {}),
       kind: wantAnnounce ? "ANNOUNCE" : "POST",
       pinned: wantPinned,
+      recruit: wantRecruit,
     },
   });
 

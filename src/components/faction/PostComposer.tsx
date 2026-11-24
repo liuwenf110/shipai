@@ -18,7 +18,7 @@ export function PostComposer({
 }: {
   factionId: string;
   factionName: string;
-  /** 调用方传的是 isManager（派主 + 副派主）：置顶与公告勾选框只对这两个角色渲染 */
+  /** 调用方传的是 isManager（派主 + 副派主）：置顶与公告勾选框只对这两个角色渲染；首页公开招募全员可用 */
   isLeader: boolean;
   placeholder?: string;
 }) {
@@ -87,6 +87,15 @@ export function PostComposer({
                   </label>
                 </>
               ) : null}
+              {/* 首页公开招募：任何成员都能把自己这条动态放进首页招募流（不构成新的对外可见面，
+                  首页原本就会把未加入派的最新动态展示给外人，现在改成按帖主动勾选） */}
+              <label
+                title="勾选后本帖进入首页「首页公开招募」，未加入本派的用户也能看到并点进来"
+                className="flex cursor-pointer items-center gap-1 rounded-full bg-cream-sunk px-2.5 py-1 text-[11px] font-semibold text-ink-soft"
+              >
+                <input type="checkbox" name="recruit" value="1" className="h-3 w-3" />
+                首页公开招募
+              </label>
               <span className="text-[10.5px] text-ink-mute">
                 {isLeader ? `以派主身份发布在「${factionName}」` : `发布在「${factionName}」`}
               </span>
