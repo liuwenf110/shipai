@@ -93,7 +93,8 @@ export async function joinFactionAction(formData: FormData) {
     back(path, "error", `该派仅对${faction.company.shortName}认证成员开放`);
   }
 
-  const needApproval = isCrossCompany || faction.joinMode === "APPROVAL";
+  // 全局策略：所有派点击加入即直接通过，不再走审批流程；派主保留剔除成员权利
+  const needApproval = false;
 
   // 每次进入 PENDING 都刷新 appliedAt，避免被拒/退出后重新申请时审批卡片显示陈旧时间；
   // 直接 ACTIVE（自由加入且同公司）无申请动作，置 null 保持字段语义干净。
