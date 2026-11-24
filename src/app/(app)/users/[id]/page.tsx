@@ -103,7 +103,9 @@ export default async function UserPublicPage({
             <div className="mt-2 flex flex-wrap gap-1.5">
               {user.employments.map((item) => (
                 <Badge key={`${item.companyId}-${item.kind}`} tone={item.kind === "ALUMNI" ? "violet" : "ok"}>
-                  {item.company.shortName} · {EMPLOYMENT_KIND[item.kind as keyof typeof EMPLOYMENT_KIND].short}
+                  {item.company.shortName}
+                  {/* 在职/离职状态仅自己可见，他人主页只显示已认证公司 */}
+                  {isSelf ? ` · ${EMPLOYMENT_KIND[item.kind as keyof typeof EMPLOYMENT_KIND].short}` : null}
                 </Badge>
               ))}
               {!user.employments.length ? <Badge tone="mute">未认证</Badge> : null}
