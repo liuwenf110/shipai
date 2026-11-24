@@ -22,6 +22,7 @@ import { launchGroupChatAction } from "@/lib/actions/groupchat";
 import { activityShareSlogan, categoryOf } from "@/lib/constants";
 import { looksRichText, prepareRichTextForRender } from "@/lib/rich-text";
 import { withBasePath } from "@/lib/base-path";
+import { absSiteUrl, buildShareMetadata } from "@/lib/share-meta";
 import { pickUserIdentity } from "@/lib/identity";
 import { audienceOfUserOrAdmin, canAccessFaction } from "@/lib/scope";
 import { capacityLabel, cn, formatActivityTime, splitList, timeAgo, toDateTimeLocal } from "@/lib/utils";
@@ -33,20 +34,39 @@ export async function generateMetadata({
   params: Promise<{ slug: string; id: string }>;
   searchParams: Promise<{ ref?: string }>;
 }) {
-  const { id } = await params;
+  const { slug, id } = await params;
   const query = await searchParams;
   const activity = await prisma.activity.findUnique({
     where: { id },
-    select: { title: true, factionId: true },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      location: true,
+      startAt: true,
+      images: true,
+      factionId: true,
+      faction: { select: { name: true, slug: true, category: true } },
+    },
   });
   if (!activity) return { title: "活动" };
-  // 分享链接直达（?ref=share）时跳过派隔离，保证外部/未登录用户看到完整活动标题
-  if (query.ref === "share") return { title: activity.title ?? "活动" };
-  // 活动标题跟随所属派隔离，猜 id 也进不了浏览历史
-  const user = await getCurrentUser();
-  const audience = await audienceOfUserOrAdmin(user);
-  if (!(await canAccessFaction(activity.factionId, audience, user?.id))) return { title: "活动" };
-  return { title: activity.title ?? "活动" };
+  const isShareLanding = query.ref === "share";
+  if (!isShareLanding) {
+    // 活动标题跟随所属派隔离，猜 id 也进不了浏览历史
+    const user = await getCurrentUser();
+    const audience = await audienceOfUserOrAdmin(user);
+    if (!(await canAccessFaction(activity.factionId, audience, user?.id)))
+      return { title: "活动" };
+  }
+  // 与帖子同机制，一律写 OG 卡片保证微信内置浏览器落到“公众号文章”式分享
+  const timeLabel = formatActivityTime(activity.startAt);
+  const cardDesc = `${timeLabel}${activity.location ? ` · ${activity.location}` : ""}｜${activity.description.slice(0, 40)}`;
+  return buildShareMetadata({
+    title: activity.title || "活动",
+    description: cardDesc,
+    image: splitList(activity.images)[0],
+    url: absSiteUrl(`/factions/${slug}/activities/${activity.id}`),
+  });
 }
 
 export default async function ActivityPage({

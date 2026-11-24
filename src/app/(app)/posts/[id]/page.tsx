@@ -26,6 +26,7 @@ import { withCommentIdentity } from "@/lib/revive";
 import { audienceOfUserOrAdmin, canAccessFaction } from "@/lib/scope";
 import { looksRichText, prepareRichTextForRender, richTextToPlainText, linkifyPlainText } from "@/lib/rich-text";
 import { formatDateTime, splitList } from "@/lib/utils";
+import { absSiteUrl, buildShareMetadata } from "@/lib/share-meta";
 
 export async function generateMetadata({
   params,
@@ -38,18 +39,37 @@ export async function generateMetadata({
   const query = await searchParams;
   const post = await prisma.post.findUnique({
     where: { id },
-    select: { title: true, content: true, factionId: true },
+    select: {
+      id: true,
+      title: true,
+      content: true,
+      images: true,
+      factionId: true,
+      faction: { select: { name: true, slug: true } },
+      author: { select: { nickname: true } },
+    },
   });
-  // 富文本帖取剥标签后的摘要作标题，避免把 HTML 写进浏览器标签页
-  const summary = post ? richTextToPlainText(post.content).slice(0, 16) : "";
   if (!post) return { title: "帖子" };
-  // 分享链接直达（?ref=share）时跳过派隔隔离，保证外部用户能看到完整标题；
-  // 站内进仍按当前访客所属派隔离。
-  if (query.ref === "share") return { title: post.title ?? (summary || "帖子") };
-  const metaUser = await getCurrentUser();
-  const metaAudience = await audienceOfUserOrAdmin(metaUser);
-  if (!(await canAccessFaction(post.factionId, metaAudience, metaUser?.id))) return { title: "帖子" };
-  return { title: post.title ?? (summary || "帖子") };
+  // 富文本帖取剥标签后的摘要，避免把 HTML 写进标题与分享卡描述
+  const body = richTextToPlainText(post.content);
+  const cardTitle = post.title || body.slice(0, 24) || "帖子";
+  const cardDesc = `${post.author?.nickname ?? "同好"} 在「${post.faction?.name ?? "上十派"}」发布：${body.slice(0, 60)}`;
+  const coverImage = splitList(post.images)[0];
+  const url = absSiteUrl(`/posts/${id}`);
+  const isShareLanding = query.ref === "share";
+  if (!isShareLanding) {
+    const metaUser = await getCurrentUser();
+    const metaAudience = await audienceOfUserOrAdmin(metaUser);
+    if (!(await canAccessFaction(post.factionId, metaAudience, metaUser?.id)))
+      return { title: "帖子" };
+  }
+  // 分享落地一律写 OG 卡片，保证微信内置浏览器「发送给朋友」与公众号文章同样富卡片
+  return buildShareMetadata({
+    title: cardTitle,
+    description: cardDesc,
+    image: coverImage,
+    url,
+  });
 }
 
 export default async function PostPage({
