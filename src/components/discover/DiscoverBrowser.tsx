@@ -115,7 +115,7 @@ export function DiscoverBrowser({
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-5">
+    <div id="faction-browser" className="mx-auto max-w-5xl px-4 py-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-bold tracking-[0.22em] text-brand">DISCOVER</p>

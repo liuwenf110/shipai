@@ -1,8 +1,11 @@
 import { loadFactionActivity, rankFactions, sliceFactions } from "@/lib/activity";
 import { prisma } from "@/lib/db";
 import { getViewer } from "@/lib/auth";
-import { PUBLIC_USER } from "@/lib/api";
+import { IDENTIFIED_USER, PUBLIC_USER } from "@/lib/api";
+import { withPostIdentity, type PostJson } from "@/lib/revive";
 import { DiscoverBrowser } from "@/components/discover/DiscoverBrowser";
+import { FactionNews } from "@/components/discover/FactionNews";
+import type { FeedSlot } from "@/components/home/FeedStream";
 import { LeaderWall } from "@/components/discover/LeaderWall";
 import { ShowMore } from "@/components/ShowMore";
 import { ActivityFeedCard } from "@/components/faction/ActivityFeedCard";
@@ -17,6 +20,8 @@ export const metadata = { title: "发现兴趣派" };
 const PAGE_SIZE = 100; // 一次取全（派数量 <100），前端只渲染前 10 个，其余由“更多”展开
 const HOT_PAGE_SIZE = 8; // 热门活动取 8 条：首屏只放 3 条，剩下的收进「更多」
 const HOT_VISIBLE = 3; // 热门活动首屏条数
+const NEWS_PAGE_SIZE = 10; // 派新鲜事首屏 10 条，其余走 /api/v1/feed 分页补出
+const NEWS_ACTIVITY_SLOTS = 3; // 派新鲜事里混排的本派未开始活动条数
 
 export default async function DiscoverPage({
   searchParams,
@@ -52,6 +57,15 @@ export default async function DiscoverPage({
     ],
   };
 
+  // 派新鲜事的前置依赖：先拿到本人 ACTIVE 成员关系，后续帖子/活动查询都用它圈派范围
+  const myActiveMemberships = viewer
+    ? await prisma.factionMember.findMany({
+        where: { userId: viewer.user.id, status: "ACTIVE" },
+        select: { factionId: true, role: true, faction: { select: { slug: true } } },
+      })
+    : [];
+  const myActiveFactionIds = myActiveMemberships.map((item) => item.factionId);
+
   // 首屏由服务端直读数据库，后续筛选全部走 /api/v1/factions
   const [
     factionCandidates,
@@ -61,6 +75,10 @@ export default async function DiscoverPage({
     myMemberships,
     hotActivities,
     leaderFactions,
+    // 派新鲜事三件套：排在派主墙查询之后、后台开关之前，与 Promise.all 实参顺序对齐
+    newsPosts,
+    newsTotal,
+    newsActivities,
     leaderWallOn,
     hiddenWallIds,
   ] = await Promise.all([
@@ -119,6 +137,42 @@ export default async function DiscoverPage({
       where: { status: "ACTIVE", leaderId: { not: null }, ...factionScopeWhere(audience) },
       include: { leader: { select: PUBLIC_USER } },
     }),
+    // 派新鲜事（原首页派内动态流迁入）：首屏只取 10 条 + 本派未开始活动混排插槽
+    myActiveFactionIds.length
+      ? prisma.post.findMany({
+          where: { status: "PUBLISHED", factionId: { in: myActiveFactionIds } },
+          include: { author: { select: IDENTIFIED_USER }, faction: { include: { company: true } } },
+          orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
+          take: NEWS_PAGE_SIZE,
+        })
+      : Promise.resolve([]),
+    myActiveFactionIds.length
+      ? prisma.post.count({ where: { status: "PUBLISHED", factionId: { in: myActiveFactionIds } } })
+      : Promise.resolve(0),
+    myActiveFactionIds.length
+      ? prisma.activity.findMany({
+          where: {
+            status: "OPEN",
+            startAt: { gt: new Date() },
+            factionId: { in: myActiveFactionIds },
+          },
+          include: {
+            faction: { select: { slug: true, name: true, emoji: true, category: true, companyId: true } },
+            creator: {
+              select: {
+                ...PUBLIC_USER,
+                employments: {
+                  where: { status: "VERIFIED" },
+                  select: { companyId: true, kind: true, company: { select: { shortName: true } } },
+                },
+              },
+            },
+            signups: { where: { status: "GOING" }, include: { user: { select: PUBLIC_USER } }, take: 8 },
+          },
+          orderBy: { startAt: "asc" },
+          take: NEWS_ACTIVITY_SLOTS,
+        })
+      : Promise.resolve([]),
     // 后台开关：关掉后整栏不渲染（派卡片/派详情页的派主照片不受影响）
     getSiteFlag(SITE_FLAGS.LEADER_WALL),
     // 逐条「暂不上墙」的派（后台派主墙页单独勾掉的）
@@ -185,8 +239,88 @@ export default async function DiscoverPage({
   const visibleHot = hotRows.slice(0, HOT_VISIBLE);
   const extraHot = hotRows.slice(HOT_VISIBLE);
 
+  // 派新鲜事装配：作者附带认证身份 + 本人点赞态；本派活动预渲染成插槽混排（沿用原首页口径）
+  const newsLikedIds = newsPosts.length
+    ? (
+        await prisma.postLike.findMany({
+          where: { userId: viewer?.user.id ?? "", postId: { in: newsPosts.map((post) => post.id) } },
+          select: { postId: true },
+        })
+      ).map((item) => item.postId)
+    : [];
+  const newsRows: PostJson[] = newsPosts.map((post) =>
+    withPostIdentity(post, post.faction.companyId),
+  );
+  const newsGoingIds = new Set(
+    (
+      viewer && newsActivities.length
+        ? await prisma.activitySignup.findMany({
+            where: {
+              userId: viewer.user.id,
+              activityId: { in: newsActivities.map((item) => item.id) },
+              status: "GOING",
+            },
+            select: { activityId: true },
+          })
+        : []
+    ).map((item) => item.activityId),
+  );
+  // 活动卡是 Server Component，先渲染成节点再按发布时间算插入位置；置顶帖永远占住流首
+  const newsPinnedCount = newsPosts.findIndex((post) => !post.pinned);
+  const newsPinnedHead = newsPinnedCount === -1 ? newsPosts.length : newsPinnedCount;
+  const newsSlots: FeedSlot[] = newsActivities.map((item) => {
+    const made = new Date(item.createdAt).getTime();
+    const found = newsPosts.findIndex((post) => new Date(post.createdAt).getTime() < made);
+    const mine = myActiveMemberships.find((membership) => membership.factionId === item.factionId);
+    return {
+      at: Math.max(newsPinnedHead, found === -1 ? newsPosts.length : found),
+      node: (
+        <ActivityFeedCard
+          key={item.id}
+          activity={(() => {
+            const { creator, faction, ...row } = item;
+            const { employments, ...author } = creator;
+            return {
+              ...row,
+              creator: { ...author, identity: pickUserIdentity(employments, faction.companyId) },
+            };
+          })()}
+          slug={item.faction.slug}
+          isMember
+          isManager={Boolean(mine && mine.role !== "MEMBER")}
+          currentUserId={viewer?.user.id}
+          going={newsGoingIds.has(item.id)}
+          path="/discover"
+          redirectTo="/discover"
+          signedIn
+          isVerified={Boolean(viewer?.isVerified)}
+          factionTag={{
+            emoji: item.faction.emoji,
+            name: item.faction.name,
+            from: categoryOf(item.faction.category).from,
+            to: categoryOf(item.faction.category).to,
+          }}
+        />
+      ),
+    };
+  });
+
   return (
     <>
+      {/* 派新鲜事置前：原首页的派内动态流移到这里，登录用户才展示 */}
+      {viewer ? (
+        <FactionNews
+          posts={newsRows}
+          likedIds={newsLikedIds}
+          activitySlots={newsSlots}
+          hasMore={newsTotal > newsPosts.length}
+          emptyAction={
+            myActiveMemberships[0]
+              ? { label: "去发第一条", href: `/factions/${myActiveMemberships[0].faction.slug}?tab=posts` }
+              : { label: "去发现兴趣派", href: "#faction-browser" }
+          }
+        />
+      ) : null}
       {hotRows.length ? (
         <section className="mx-auto max-w-5xl px-4 pt-5">
           <div className="mb-2 flex items-center justify-between">

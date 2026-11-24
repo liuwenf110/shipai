@@ -45,120 +45,76 @@ export default async function HomePage() {
     );
   }
 
+  // 首页只用到成员身份本身（活动卡据此判断可否管理），不再需要派/公司详情
   const memberships = await prisma.factionMember.findMany({
     where: { userId: viewer.user.id, status: { in: ["ACTIVE", "PENDING"] } },
-    include: { faction: { include: { company: true, leader: { select: PUBLIC_USER } } } },
+    select: { factionId: true, role: true, status: true },
     orderBy: { joinedAt: "asc" },
   });
 
-  const myFactionIds = memberships
-    .filter((item) => item.status === "ACTIVE")
-    .map((item) => item.factionId);
-
-  const joinedFactionIds = memberships.map((item) => item.factionId);
-
   const audience = viewer.audience;
 
-  const [
-    posts,
-    feedTotal,
-    pendingLeaderApplications,
-    otherFactionPosts,
-    tickerItems,
-    myActivities,
-  ] = await Promise.all([
-    myFactionIds.length
-      ? prisma.post.findMany({
-          where: { factionId: { in: myFactionIds }, status: "PUBLISHED" },
-          include: {
-            author: { select: IDENTIFIED_USER },
-            faction: { include: { company: true } },
+  const [tickerItems, upcomingActivities, recruitPosts] = await Promise.all([
+    // 顶部消息栏：老派主回归等真实动态，外加当前派主的待审批待办
+    buildHomeTicker(viewer.user.id, audience),
+    // 首页活动列表：可见派里未开始的报名中活动，按临近开场优先，全量展示
+    prisma.activity.findMany({
+      where: {
+        status: "OPEN",
+        startAt: { gt: new Date() },
+        faction: { status: "ACTIVE", ...factionScopeWhere(audience) },
+      },
+      include: {
+        faction: {
+          select: { id: true, slug: true, name: true, emoji: true, category: true, companyId: true },
+        },
+        creator: {
+          select: {
+            ...PUBLIC_USER,
+            employments: {
+              where: { status: "VERIFIED" },
+              select: { companyId: true, kind: true, company: { select: { shortName: true } } },
+            },
           },
-          orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
-          take: 8,
-        })
-      : Promise.resolve([]),
-    myFactionIds.length
-      ? prisma.post.count({ where: { factionId: { in: myFactionIds }, status: "PUBLISHED" } })
-      : Promise.resolve(0),
-    prisma.leaderApplication.findMany({
-      where: { userId: viewer.user.id, status: "PENDING" },
-      select: { factionId: true },
+        },
+        signups: { where: { status: "GOING" }, include: { user: { select: PUBLIC_USER } }, take: 8 },
+      },
+      orderBy: { startAt: "asc" },
     }),
-    // 首页公开招募：只拿帖主勾选「首页公开招募」的帖（未加入（含待审批）的派），多取一些供按派去重
+    // 公开招募流：所有勾选「首页公开招募」的已发布帖（含自己派），不过滤不派内去重，全量上首页
     prisma.post.findMany({
       where: {
         status: "PUBLISHED",
         recruit: true,
         faction: {
-          AND: [
-            { status: "ACTIVE" },
-            joinedFactionIds.length ? { id: { notIn: joinedFactionIds } } : {},
-            factionAccessWhere(audience, viewer.user.id),
-          ],
+          AND: [{ status: "ACTIVE" }, factionAccessWhere(audience, viewer.user.id)],
         },
       },
       include: {
         author: { select: IDENTIFIED_USER },
         faction: { include: { company: true } },
       },
-      orderBy: { createdAt: "desc" },
-      take: 16,
+      orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
     }),
-    // 顶部消息栏：老派主回归等真实动态，外加当前派主的待审批待办
-    buildHomeTicker(viewer.user.id, audience),
-    // 自己所属派的未开始活动：按临近开场优先取 3 条，混排进派内新鲜事
-    myFactionIds.length
-      ? prisma.activity.findMany({
-          where: { factionId: { in: myFactionIds }, status: "OPEN", startAt: { gt: new Date() } },
-          include: {
-            faction: {
-              select: { id: true, slug: true, name: true, emoji: true, category: true, companyId: true },
-            },
-            creator: {
-              select: {
-                ...PUBLIC_USER,
-                employments: {
-                  where: { status: "VERIFIED" },
-                  select: { companyId: true, kind: true, company: { select: { shortName: true } } },
-                },
-              },
-            },
-            signups: { where: { status: "GOING" }, include: { user: { select: PUBLIC_USER } }, take: 8 },
-          },
-          orderBy: { startAt: "asc" },
-          take: 3,
-        })
-      : Promise.resolve([]),
   ]);
 
-  // 首页「派主认证」卡片据此跳过已提交申请、仍在审核中的派
-  const pendingLeaderFactionIds = pendingLeaderApplications.map((item) => item.factionId);
-
-  const likedIds = posts.length
+  // 招募卡也要显示本人点过赞的数：服务端直出，不像派内新鲜事那样走分页 API
+  const likedIds = recruitPosts.length
     ? (
         await prisma.postLike.findMany({
-          where: { userId: viewer.user.id, postId: { in: posts.map((post) => post.id) } },
+          where: { userId: viewer.user.id, postId: { in: recruitPosts.map((post) => post.id) } },
           select: { postId: true },
         })
       ).map((item) => item.postId)
     : [];
 
-  // 帖子作者附带认证身份（公司 + 在职/离职），同派公司优先
-  const feedPosts = posts.map((post) => withPostIdentity(post, post.faction.companyId));
+  // 招募帖作者附带认证身份（公司 + 在职/离职），同派公司优先
+  const recruitRows = recruitPosts.map((post) =>
+    withPostIdentity({ ...post, liked: likedIds.includes(post.id) }, post.faction.companyId),
+  );
 
-  // 每个派只取一条，避免首页被同一个派刷屏
-  const seenOtherFactionIds = new Set<string>();
-  const otherFeedPosts = otherFactionPosts
-    .filter((post) => {
-      if (seenOtherFactionIds.has(post.factionId)) return false;
-      seenOtherFactionIds.add(post.factionId);
-      return true;
-    })
-    .slice(0, 4);
-
-  // 活动发起人展示认证身份，行形状对齐派页/发现页共用的 ActivityFeedCard
-  const activityRows = myActivities.map(({ creator, faction, ...activityRow }) => {
+  // 活动发起人展示认证身份；本人所在派附带管理台身份（派主/副派主可管报名）
+  const activityRows = upcomingActivities.map(({ creator, faction, ...activityRow }) => {
     const { employments, ...author } = creator;
     const mine = memberships.find((item) => item.factionId === faction.id);
     return {
@@ -167,8 +123,6 @@ export default async function HomePage() {
         creator: { ...author, identity: pickUserIdentity(employments, faction.companyId) },
       },
       slug: faction.slug,
-      // 混排位置按活动发布时间和帖子发布时间对齐
-      sortAt: activityRow.createdAt,
       factionName: faction.name,
       factionEmoji: faction.emoji,
       category: faction.category,
@@ -191,17 +145,8 @@ export default async function HomePage() {
   return (
     <HomeFeed
       viewer={viewer}
-      myFactions={memberships.map((item) => ({
-        faction: item.faction,
-        role: item.role,
-        status: item.status,
-      }))}
-      posts={feedPosts}
-      likedIds={likedIds}
-      otherPosts={otherFeedPosts}
       activities={activityRows.map((row) => ({ ...row, going: goingIds.has(row.activity.id) }))}
-      pendingLeaderFactionIds={pendingLeaderFactionIds}
-      feedHasMore={feedTotal > posts.length}
+      recruitPosts={recruitRows}
       tickerItems={tickerItems}
     />
   );

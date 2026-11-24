@@ -12,57 +12,72 @@ export type OtherFactionPost = Post & {
   faction: Faction & { company: Company };
 };
 
-/** 首页「首页公开招募」：只展示帖主勾选了公开招募的帖（来自未加入的派），引导用户点进去入派 */
+/**
+ * 首页「公开招募」：展示所有勾选了「首页公开招募」的帖（不限是否入派），
+ * 卡片网格布局，每张卡右下角固定一枚「招募中」角标，整卡点进帖子详情引导入派。
+ */
 export function OtherFactionFeed({ posts }: { posts: OtherFactionPost[] }) {
   if (!posts.length) return null;
 
   return (
-    <div>
+    <section id="recruit-feed">
       <SectionHeader
-        title="首页公开招募"
-        desc="别的派在公开招人，点进去看详情就能加入"
+        title="公开招募"
+        desc="各派正在公开招人的动态，点进去看详情就能加入"
         href="/discover"
         linkLabel="去逛逛"
       />
-      <div className="card divide-y divide-ink-line/60">
+      <div className="grid gap-3 md:grid-cols-2">
         {posts.map((post) => {
           const meta = categoryOf(post.faction.category);
           return (
             <Link
               key={post.id}
               href={`/posts/${post.id}`}
-              className="flex items-start gap-3 p-3 transition hover:bg-cream"
+              className="card flex flex-col gap-2 p-4 transition-shadow hover:shadow-float"
             >
-              <span
-                className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[17px]"
-                style={{
-                  backgroundImage: `linear-gradient(135deg, ${meta.from}, ${meta.to})`,
-                }}
-              >
-                {post.faction.emoji}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10.5px] text-ink-mute">
-                  <span className="max-w-[150px] truncate text-[11.5px] font-bold text-ink">
+              {/* 头部：派别渐变图块 + 派名/公司/时间，公告帖带公告标 */}
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[19px]"
+                  style={{
+                    backgroundImage: `linear-gradient(135deg, ${meta.from}, ${meta.to})`,
+                  }}
+                >
+                  {post.faction.emoji}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12.5px] font-bold text-ink">
                     {post.faction.name}
-                  </span>
-                  <span>{post.faction.company.shortName}</span>
-                  <span>·</span>
-                  <span>{timeAgo(post.createdAt)}</span>
-                  <span className="rounded bg-brand-soft px-1 py-0.5 text-[9px] font-bold text-brand-dark">
-                    公开招募
-                  </span>
-                  {post.kind === "ANNOUNCE" ? (
-                    <span className="rounded bg-ink px-1 py-0.5 text-[9px] font-bold text-white">
-                      公告
+                    <span className="ml-1.5 text-[10px] font-medium text-ink-mute">
+                      {post.faction.company.shortName}
                     </span>
-                  ) : null}
+                  </p>
+                  <p className="text-[10px] text-ink-mute">{timeAgo(post.createdAt)}</p>
                 </div>
-                <p className="mt-1 line-clamp-2 text-[12.5px] leading-relaxed text-ink-soft">
-                  {post.title || richTextToPlainText(post.content)}
+                {post.kind === "ANNOUNCE" ? (
+                  <span className="shrink-0 rounded bg-ink px-1.5 py-0.5 text-[9px] font-bold text-white">
+                    公告
+                  </span>
+                ) : null}
+              </div>
+
+              {/* 正文：标题优先，无标题取正文纯文本前几行 */}
+              <div className="min-w-0">
+                {post.title ? (
+                  <p className="line-clamp-1 text-[13.5px] font-bold leading-snug text-ink">
+                    {post.title}
+                  </p>
+                ) : null}
+                <p className={post.title ? "mt-1 line-clamp-2 text-[12px] leading-relaxed text-ink-soft" : "line-clamp-3 text-[12.5px] leading-relaxed text-ink-soft"}>
+                  {richTextToPlainText(post.content)}
                 </p>
-                <div className="mt-1.5 flex items-center gap-3 text-[10.5px] text-ink-mute">
-                  <span className="truncate">{post.author.nickname}</span>
+              </div>
+
+              {/* 底部：左列作者与互动数，右列固定「招募中」角标 */}
+              <div className="mt-auto flex items-end justify-between gap-2 border-t border-ink-line/60 pt-2">
+                <div className="flex min-w-0 items-center gap-2.5 text-[10.5px] text-ink-mute">
+                  <span className="max-w-[90px] truncate">{post.author.nickname}</span>
                   <span className="flex items-center gap-0.5">
                     <Icon name="heart" size={11} />
                     {post.likeCount}
@@ -72,12 +87,14 @@ export function OtherFactionFeed({ posts }: { posts: OtherFactionPost[] }) {
                     {post.commentCount}
                   </span>
                 </div>
+                <span className="shrink-0 rounded-full bg-brand px-2.5 py-1 text-[10px] font-black tracking-wide text-white shadow-sm">
+                  招募中
+                </span>
               </div>
-              <Icon name="right" size={14} className="mt-1 shrink-0 text-ink-mute" />
             </Link>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
