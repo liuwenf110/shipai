@@ -130,6 +130,7 @@ export default async function DiscoverPage({
 
   return (
     <>
+      <LeaderWall rows={leaderRows} />
       {/* 派新鲜事：登录用户展示所有可见派最新发布帖子 */}
       {viewer ? (
         <FactionNews
@@ -137,7 +138,6 @@ export default async function DiscoverPage({
           emptyAction={{ label: "去发现兴趣派", href: "#faction-browser" }}
         />
       ) : null}
-      <LeaderWall rows={leaderRows} />
       <DiscoverBrowser
         initialFactions={factions.map((faction) => ({
           ...faction,

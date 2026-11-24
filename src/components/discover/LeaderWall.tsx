@@ -33,10 +33,10 @@ export function LeaderWall({ rows }: { rows: LeaderRow[] }) {
             <Link
               key={faction.id}
               href={`/factions/${faction.slug}`}
-              className="group card block w-[176px] shrink-0 overflow-hidden transition hover:-translate-y-0.5 hover:shadow-float"
+              className="group card block w-[200px] shrink-0 transition hover:-translate-y-0.5 hover:shadow-float"
             >
               <div
-                className="relative flex h-12 items-start justify-between px-3 pt-2"
+                className="relative flex h-12 items-start justify-between overflow-hidden rounded-t-xl px-3 pt-2"
                 style={{ backgroundImage: `linear-gradient(135deg, ${meta.from}, ${meta.to})` }}
               >
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_88%_10%,rgba(255,255,255,0.55),transparent_55%)]" />
@@ -50,13 +50,13 @@ export function LeaderWall({ rows }: { rows: LeaderRow[] }) {
               </div>
 
               <div className="px-3 pb-3">
-                <div className="-mt-6 flex justify-center">
+                <div className="relative z-10 -mt-7 flex justify-center">
                   <Avatar name={leader.nickname} color={leader.avatarColor} src={leader.avatarImage} size="lg" ring />
                 </div>
                 <p className="mt-1.5 truncate text-center text-[13px] font-black leading-tight text-ink">
                   {leader.nickname}
                 </p>
-                <p className="mt-2 line-clamp-2 text-center text-[11px] leading-relaxed text-ink-soft">
+                <p className="mt-2 line-clamp-4 text-center text-[11px] leading-relaxed text-ink-soft">
                   {leader.bio?.trim() || "还没写简介，进派聊聊就知道。"}
                 </p>
 
