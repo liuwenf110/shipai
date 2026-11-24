@@ -278,6 +278,7 @@ export default async function PostPage({
                       link: post.linkUrl ?? "",
                       pinned: post.pinned,
                       isAnnounce: post.kind === "ANNOUNCE",
+                      recruit: post.recruit,
                     }}
                     redirectTo={path}
                   />

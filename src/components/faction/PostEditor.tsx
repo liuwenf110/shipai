@@ -9,7 +9,8 @@ import { INITIAL_ACTION_STATE } from "@/lib/types";
 import { useFormValues } from "@/lib/use-form-values";
 
 /** 作者编辑自己的帖子：标题与正文（链接改由富文本内联粘贴），配图与原有链接保持不变
- * isManager：作者同时是本派派主/副派主时额外渲染「置顶」「公告」勾选框（治理权，初值从帖子现状回填） */
+ * isManager：作者同时是本派派主/副派主时额外渲染「置顶」「公告」勾选框（治理权，初值从帖子现状回填）
+ * 「首页公开招募」不限角色（与发帖表单同口径），任何人都能改自己这条帖的招募状态 */
 export function PostEditor({
   postId,
   defaults,
@@ -18,7 +19,7 @@ export function PostEditor({
   isManager = false,
 }: {
   postId: string;
-  defaults: { title: string; content: string; link: string; pinned: boolean; isAnnounce: boolean };
+  defaults: { title: string; content: string; link: string; pinned: boolean; isAnnounce: boolean; recruit: boolean };
   redirectTo: string;
   /** 保存成功回调：父级用于收起折叠面板 */
   onSaved?: () => void;
@@ -31,6 +32,7 @@ export function PostEditor({
     content: defaults.content,
     pinned: defaults.pinned ? "true" : "",
     announce: defaults.isAnnounce ? "true" : "",
+    recruit: defaults.recruit ? "true" : "",
   });
 
   // 保存成功后通知父级收起面板；用 ref 守卫只触发一次，避免折叠面板重挂时循环回调
@@ -81,6 +83,23 @@ export function PostEditor({
           </label>
         </div>
       ) : null}
+      {/* 首页公开招募与发帖同口径：全员可改自己这条帖是否进入首页招募流，初值从帖子现状回填 */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label
+          title="勾选后本帖进入首页「首页公开招募」，未加入本派的用户也能看到并点进来"
+          className="flex cursor-pointer items-center gap-1 rounded-full bg-cream-sunk px-2.5 py-1 text-[11px] font-semibold text-ink-soft"
+        >
+          {/* key 强制重挂：Server Action 后 form.reset 会清掉非受控勾选，靠 defaultChecked + 重挂保住用户的选择 */}
+          <input
+            type="checkbox"
+            key={form.values.recruit}
+            {...form.toggle("recruit")}
+            value="1"
+            className="h-3 w-3"
+          />
+          首页公开招募
+        </label>
+      </div>
       <div className="flex items-center justify-between">
         <span className="text-[10.5px] text-ink-mute">修改后内容立即生效，配图保持不变</span>
         <SubmitButton className="btn-primary btn-sm" pendingText="保存中…">

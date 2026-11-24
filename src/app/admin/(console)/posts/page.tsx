@@ -101,6 +101,7 @@ export default async function AdminPostsPage({
                 <Badge tone="mute">派 · {post.faction.company.shortName}</Badge>
                 {post.status === "HIDDEN" ? <Badge tone="bad">已隐藏</Badge> : null}
                 {post.pinned ? <Badge tone="brand">置顶</Badge> : null}
+                {post.recruit ? <Badge tone="brand">公开招募</Badge> : null}
                 <span className="text-[10px] text-ink-mute">{timeAgo(post.createdAt)}</span>
               </div>
               <Link href={`/posts/${post.id}`} className="mt-1.5 block">
@@ -137,6 +138,14 @@ export default async function AdminPostsPage({
                     pendingText="…"
                   >
                     删除
+                  </SubmitButton>
+                </form>
+                {/* 首页公开招募同步开关：运营可直接把帖推入/移出首页招募流 */}
+                <form action={adminModeratePostAction}>
+                  <input type="hidden" name="postId" value={post.id} />
+                  <input type="hidden" name="action" value={post.recruit ? "recruit_off" : "recruit_on"} />
+                  <SubmitButton className="btn-quiet btn-sm" pendingText="…">
+                    {post.recruit ? "移出招募" : "首页招募"}
                   </SubmitButton>
                 </form>
                 <Link href={`/posts/${post.id}`} className="ml-auto text-[11px] font-semibold text-ink-mute">

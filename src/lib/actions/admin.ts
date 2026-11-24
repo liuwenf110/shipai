@@ -425,14 +425,18 @@ export async function adminModeratePostAction(formData: FormData) {
         data: { postCount: { decrement: 1 } },
       });
     }
+  } else if (action === "recruit_on" || action === "recruit_off") {
+    // 首页公开招募的平台侧同步开关：运营可直接把帖推入/移出首页招募流
+    await prisma.post.update({ where: { id: postId }, data: { recruit: action === "recruit_on" } });
   } else {
     back("/admin/posts", "error", "未知操作");
   }
 
   await audit(admin.id, `MODERATE_POST_${action.toUpperCase()}`, "Post", postId);
   revalidatePath("/admin/posts");
+  revalidatePath("/");
   revalidatePath(`/factions`);
-  back("/admin/posts", "ok", "内容状态已更新");
+  back("/admin/posts", "ok", action.startsWith("recruit_") ? "首页招募状态已更新" : "内容状态已更新");
 }
 
 /** 用户管理：禁用 / 启用 / 设为运营 / 取消运营 / 强制下线 */

@@ -62,6 +62,9 @@ export async function editPostAction(
     authorMembership && authorMembership.status === "ACTIVE" && authorMembership.role !== "MEMBER",
   );
 
+  // 首页公开招募不限角色（编辑与发帖表单都对作者本人渲染该勾选），未勾选即取消招募
+  const wantRecruit = formData.get("recruit") === "1";
+
   const textCheck = await checkUserText(user.id, `${title} ${plainContent} ${linkUrl ?? ""}`.trim(), 4);
   if (!textCheck.ok) return { error: "内容涉及违规信息，请调整后重新保存" };
 
@@ -72,6 +75,7 @@ export async function editPostAction(
     data: {
       title: title || null,
       content,
+      recruit: wantRecruit,
       ...(isFactionManager
         ? {
             pinned: formData.get("pinned") === "1",

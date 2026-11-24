@@ -152,7 +152,7 @@ export function HomeFeed({
             )}
           </div>
 
-          {/* 其他派新鲜事 */}
+          {/* 首页公开招募（按帖勾选） */}
           <OtherFactionFeed posts={otherPosts} />
         </div>
 
