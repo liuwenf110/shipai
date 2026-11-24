@@ -35,11 +35,13 @@ function shareQuery(search: string, keepFrom = true) {
 }
 
 /**
- * 帖子详情页整页分享按钮：点击展开分享面板。
- * - 普通浏览器：给出帖子绝对链接，支持「复制文案+链接 / 仅复制链接 / 系统分享面板」；
- * - 小程序 web-view 内：把分享三要素（标题、path、封面）postMessage 给壳，引导用户点
- *   右上角「···→ 发送给朋友」，让对方点开卡片直接落到这条帖子详情页。
- * 分享的永远是整页 URL（含 ref=share），不再是片段。
+ * 帖子详情页「整页分享」按钮：一次点击即触发系统 / 微信原生的分享面板，
+ * 不再弹内嵌的复制文本面板。
+ * - 支持 navigator.share 的浏览器（微信内置 Safari/Chrome/iOS）：直接调起系统分享，
+ *   分享内容为整页 URL + 帖标 + 摘要 + 首图，用户可继续选微信/微博/复制链接等；
+ * - 小程序 web-view 内：H5 无法主动调起微信原生分享，把整页分享三要素 postMessage 给壳，
+ *   并弹出「点右上角·发送给朋友」轻提示；
+ * - 老浏览器兜底：直接复制整页链接到剪贴板并给出提示。
  */
 export function PostShareButton({
   title,
@@ -53,163 +55,104 @@ export function PostShareButton({
   path: string;
   /** 可选封面图：站内相对路径或 https 绝对地址；组件内补成小程序可拉的绝对 https */
   image?: string;
-  /** 可选一句话摘要：给浏览器面板下辅助文案用，小程序卡片仍只用 title */
+  /** 可选一句话摘要：给系统 share sheet 的 text 字段用 */
   summary?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const [link, setLink] = useState("");
-  const [shareTarget, setShareTarget] = useState<{
-    title: string;
-    path: string;
-    image: string;
-  } | null>(null);
-  const [mp, setMp] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
-  const boxRef = useRef<HTMLDivElement>(null);
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
+  function showToast(text: string) {
+    setToast(text);
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(""), 2600);
+  }
+
+  useEffect(() => () => {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+  }, []);
+
+  function buildPayload() {
     const { origin, pathname, search } = window.location;
     const target = withBasePath(path);
-    setLink(`${origin}${target}${shareQuery(search)}`);
-    setShareTarget({
-      title,
-      // 给壳的是不含部署前缀的干净路径，壳侧与 H5_BASE 拼接
-      path: `${stripBasePath(target)}${shareQuery(search, false)}`,
-      image: image ? (image.startsWith("http") ? image : `${origin}${image}`) : "",
-    });
-    setMp(inMiniProgramWebView());
-  }, [open, path, image, title]);
+    return {
+      url: `${origin}${target}${shareQuery(search)}`,
+      // 给壳的 path 需剥部署前缀，壳会与 H5_BASE 拼接
+      mpPath: `${stripBasePath(target)}${shareQuery(search, false)}`,
+      imageAbs: image ? (image.startsWith("http") ? image : `${origin}${image}`) : "",
+      // 少数浏览器从当前 pathname 分享时才用它，正常走 path prop
+      fromCurrent: pathname,
+    };
+  }
 
-  // 小程序内展开面板：注入 jweixin 并把分享信息 postMessage 给壳（右上角转发时壳会收到）
-  useEffect(() => {
-    if (!open || !mp || !shareTarget) return;
-    const payload = { type: "share", ...shareTarget };
-    const post = () => window.wx?.miniProgram?.postMessage({ data: payload });
-    if (window.wx?.miniProgram) {
-      post();
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://res.wx.qq.com/open/js/jweixin-1.6.0.js";
-    script.onload = post;
-    document.head.appendChild(script);
-    // 不主动移除：其他组件（登录页/派页分享）也在复用同一份 jweixin
-  }, [open, mp, shareTarget]);
-
-  // 点击面板外区域收起
-  useEffect(() => {
-    if (!open) return;
-    function onDocClick(event: MouseEvent) {
-      if (boxRef.current && !boxRef.current.contains(event.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [open]);
-
-  async function copy(key: string, text: string) {
+  async function copyFallback(url: string) {
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(url);
+      showToast("整页链接已复制");
     } catch {
-      // http 或旧浏览器下 clipboard API 不可用，退回临时 textarea
       const ta = document.createElement("textarea");
-      ta.value = text;
+      ta.value = url;
       ta.style.position = "fixed";
       ta.style.opacity = "0";
       document.body.appendChild(ta);
       ta.select();
       document.execCommand("copy");
       document.body.removeChild(ta);
+      showToast("整页链接已复制");
     }
-    setCopied(key);
-    window.setTimeout(() => setCopied(null), 1800);
   }
 
-  const canNativeShare =
-    typeof window !== "undefined" && typeof window.navigator?.share === "function";
+  async function onShare() {
+    const { url, mpPath, imageAbs } = buildPayload();
+
+    // 小程序 web-view：无法直接调起微信原生分享，postMessage 让壳准备好整页卡片 + 轻提示引导
+    if (inMiniProgramWebView()) {
+      const payload = { type: "share", title, path: mpPath, image: imageAbs };
+      const post = () => window.wx?.miniProgram?.postMessage({ data: payload });
+      if (window.wx?.miniProgram) {
+        post();
+      } else {
+        const script = document.createElement("script");
+        script.src = "https://res.wx.qq.com/open/js/jweixin-1.6.0.js";
+        script.onload = post;
+        document.head.appendChild(script);
+      }
+      showToast("已准备整页分享，点右上角「···」→ 发送给朋友");
+      return;
+    }
+
+    // 普通浏览器：直接调起系统 share sheet 完成整页分享
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title,
+          text: summary || title,
+          url,
+        });
+        return;
+      } catch (error) {
+        // 用户主动取消不再回退；其他异常（如微信内置浏览器受限）落到复制
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+    await copyFallback(url);
+  }
 
   return (
-    <div className="relative" ref={boxRef}>
+    <span className="relative inline-flex items-center gap-1.5">
       <button
         type="button"
-        aria-label="分享这条帖子"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className={
-          open
-            ? "flex items-center gap-1 text-[11.5px] font-semibold text-brand"
-            : "flex items-center gap-1 text-[11.5px] font-semibold text-ink-mute transition hover:text-brand"
-        }
+        aria-label="整页分享这条帖子"
+        onClick={() => void onShare()}
+        className="flex items-center gap-1 text-[11.5px] font-semibold text-ink-mute transition hover:text-brand"
       >
         <Icon name="share" size={14} />
         分享
       </button>
-
-      {open ? (
-        <div className="absolute right-0 top-full z-30 mt-1.5 w-[290px] rounded-2xl border border-ink-line bg-white p-3.5 text-left shadow-lg">
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-[13px] font-black leading-snug text-ink">{title}</p>
-            <button
-              type="button"
-              aria-label="关闭分享面板"
-              onClick={() => setOpen(false)}
-              className="shrink-0 text-ink-mute hover:text-ink"
-            >
-              <Icon name="close" size={14} />
-            </button>
-          </div>
-          {summary ? (
-            <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-ink-mute">{summary}</p>
-          ) : null}
-
-          {mp ? (
-            <div className="mt-2.5 rounded-xl border border-[#07C160]/30 bg-[#E8F8EE] px-3 py-2.5">
-              <p className="text-[12px] font-bold text-[#07C160]">点右上角「···」→ 发送给朋友</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
-                已把这条帖子的整页链接准备好，对方点开卡片就能直达帖子详情，微信一键登录后可评论点赞。
-              </p>
-            </div>
-          ) : (
-            <>
-              <p className="mt-2 break-all rounded-xl bg-cream px-2.5 py-2 text-[11px] leading-relaxed text-ink-soft">
-                {link}
-              </p>
-              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => copy("all", `${title}\n${link}`)}
-                  className="btn-primary btn-sm"
-                >
-                  {copied === "all" ? "已复制 ✓" : "复制文案+链接"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => copy("link", link)}
-                  className="btn-ghost btn-sm"
-                >
-                  {copied === "link" ? "已复制 ✓" : "仅复制链接"}
-                </button>
-                {canNativeShare ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.navigator
-                        .share({ title, text: summary || title, url: link })
-                        .catch(() => {});
-                    }}
-                    className="btn-ghost btn-sm"
-                  >
-                    更多
-                  </button>
-                ) : null}
-              </div>
-              <p className="mt-2 text-[10.5px] leading-relaxed text-ink-mute">
-                整页链接包含帖子详情与评论，对方打开后即在浏览器里落到本条帖子。
-              </p>
-            </>
-          )}
-        </div>
+      {toast ? (
+        <span className="pointer-events-none absolute right-full top-1/2 z-30 -translate-y-1/2 whitespace-nowrap rounded-full bg-ink px-2.5 py-1 text-[10.5px] font-semibold text-white shadow-md">
+          {toast}
+        </span>
       ) : null}
-    </div>
+    </span>
   );
 }
