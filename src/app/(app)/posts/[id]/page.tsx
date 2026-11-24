@@ -258,6 +258,8 @@ export default async function PostPage({
                 <PostShareButton
                   title={post.title ?? richTextToPlainText(post.content).slice(0, 24)}
                   path={path}
+                  image={images[0]}
+                  summary={richTextToPlainText(post.content).slice(0, 40)}
                 />
               </span>
             </div>
