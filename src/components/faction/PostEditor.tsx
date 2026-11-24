@@ -8,7 +8,8 @@ import { editPostAction } from "@/lib/actions/content";
 import { INITIAL_ACTION_STATE } from "@/lib/types";
 import { useFormValues } from "@/lib/use-form-values";
 
-/** 作者编辑自己的帖子：标题与正文（链接改由富文本内联粘贴），配图与原有链接保持不变
+/** 作者编辑自己的帖子：标题、正文（链接改由富文本内联粘贴）与封面图均可改；
+ * 封面图默认保留原图，勾选「删除配图」才会清空 Post.images 列
  * isManager：作者同时是本派派主/副派主时额外渲染「置顶」「公告」勾选框（治理权，初值从帖子现状回填）
  * 「首页公开招募」不限角色（与发帖表单同口径），任何人都能改自己这条帖的招募状态 */
 export function PostEditor({
@@ -19,7 +20,15 @@ export function PostEditor({
   isManager = false,
 }: {
   postId: string;
-  defaults: { title: string; content: string; link: string; pinned: boolean; isAnnounce: boolean; recruit: boolean };
+  defaults: {
+    title: string;
+    content: string;
+    link: string;
+    image: string;
+    pinned: boolean;
+    isAnnounce: boolean;
+    recruit: boolean;
+  };
   redirectTo: string;
   /** 保存成功回调：父级用于收起折叠面板 */
   onSaved?: () => void;
@@ -33,7 +42,10 @@ export function PostEditor({
     pinned: defaults.pinned ? "true" : "",
     announce: defaults.isAnnounce ? "true" : "",
     recruit: defaults.recruit ? "true" : "",
+    dropImage: "",
   });
+  // 本地状态跟踪「删除配图」勾选，用于隐藏当前封面预览
+  const dropImageChecked = form.values.dropImage === "true";
 
   // 保存成功后通知父级收起面板；用 ref 守卫只触发一次，避免折叠面板重挂时循环回调
   const notified = useRef(false);
@@ -100,8 +112,33 @@ export function PostEditor({
           首页公开招募
         </label>
       </div>
+      {/* 封面配图：默认保留原图，勾选删除才清空 Post.images 列 */}
+      {defaults.image ? (
+        <div className="rounded-xl border border-ink-line bg-cream-sunk/40 p-2.5">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[11px] font-bold text-ink-soft">当前封面配图</span>
+            <label className="flex cursor-pointer items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#B42318]">
+              <input
+                type="checkbox"
+                key={form.values.dropImage}
+                {...form.toggle("dropImage")}
+                value="1"
+                className="h-3 w-3"
+              />
+              删除配图
+            </label>
+          </div>
+          <div
+            className={`overflow-hidden rounded-lg transition-opacity ${dropImageChecked ? "opacity-40" : ""}`}
+            style={{ maxHeight: dropImageChecked ? 0 : 400 }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={defaults.image} alt="当前配图" className="w-full object-cover" />
+          </div>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between">
-        <span className="text-[10.5px] text-ink-mute">修改后内容立即生效，配图保持不变</span>
+        <span className="text-[10.5px] text-ink-mute">修改后内容立即生效</span>
         <SubmitButton className="btn-primary btn-sm" pendingText="保存中…">
           保存修改
         </SubmitButton>

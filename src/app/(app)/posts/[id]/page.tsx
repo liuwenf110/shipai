@@ -276,6 +276,7 @@ export default async function PostPage({
                       title: post.title ?? "",
                       content: post.content,
                       link: post.linkUrl ?? "",
+                      image: images[0] ?? "",
                       pinned: post.pinned,
                       isAnnounce: post.kind === "ANNOUNCE",
                       recruit: post.recruit,

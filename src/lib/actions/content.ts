@@ -91,6 +91,8 @@ export async function editPostAction(
             linkDesc: linkSnapshot?.linkDesc ?? null,
           }
         : {}),
+      // 封面配图：仅当作者显式勾选「删除配图」才清空 Post.images 列；未勾选保持原图
+      ...(formData.get("dropImage") === "1" ? { images: null } : {}),
     },
   });
 
