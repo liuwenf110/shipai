@@ -132,16 +132,17 @@ export default async function AdminLeaderWallPage({
                   />
                 </label>
 
-                <label className="block">
+                <label className="block md:col-span-2">
                   <span className="text-[10.5px] font-bold text-ink-mute">
-                    派主简介（卡片中间那行，建议 15~25 字口语）
+                    派主简介（卡片中间那段，最多 200 字）
                   </span>
-                  <input
+                  <textarea
                     name="bio"
                     defaultValue={leader.bio ?? ""}
-                    maxLength={60}
+                    maxLength={200}
                     placeholder="还没写简介"
-                    className="input mt-1 py-2 text-[12px]"
+                    rows={4}
+                    className="input mt-1 py-2 text-[12px] leading-relaxed resize-y"
                   />
                 </label>
 

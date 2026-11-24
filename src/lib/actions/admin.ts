@@ -341,7 +341,7 @@ export async function saveLeaderWallEntryAction(formData: FormData) {
   const sortOrderRaw = String(formData.get("sortOrder") ?? "").trim();
 
   if (nickname.length < 2 || nickname.length > 32) back(path, "error", "昵称需 2-32 个字符");
-  if (bio.length > 60) back(path, "error", "派主简介最多 60 个字符");
+  if (bio.length > 200) back(path, "error", "派主简介最多 200 个字符");
   if (tagline.length > 40) back(path, "error", "派宣传语最多 40 个字符");
 
   const taken = await prisma.user.findFirst({
