@@ -7,7 +7,6 @@ import { Icon } from "@/components/Icon";
 import { QueryNotice } from "@/components/Notice";
 import { EmptyState } from "@/components/Section";
 import { SubmitButton } from "@/components/SubmitButton";
-import { ConfirmSubmit } from "@/components/content/ConfirmSubmit";
 import { Disclosure } from "@/components/Disclosure";
 import { logoutAction } from "@/lib/actions/auth";
 import { ProfileForm } from "@/components/account/ProfileForm";
@@ -423,18 +422,18 @@ export default async function MePage({
           </span>
           <Icon name="right" size={14} className="text-ink-mute" />
         </Link>
-        <form action={logoutAction} className="card flex items-center justify-between p-3.5">
-          <span className="flex items-center gap-2 text-[12.5px] font-bold text-ink">
-            <Icon name="logout" size={16} className="text-ink-mute" />
-            退出登录
-          </span>
-          <ConfirmSubmit
-            className="text-[11px] font-semibold text-ink-mute"
-            confirmText="确定要退出登录吗？"
-            pendingText="退出中…"
+        {/* 一键退出：整张卡片就是一个提交按钮，不再另设“退出”小链接，避免多一步点右側才能确认 */}
+        <form action={logoutAction}>
+          <button
+            type="submit"
+            className="card flex w-full items-center justify-between p-3.5 text-left transition hover:bg-cream-sunk/60"
           >
-            退出
-          </ConfirmSubmit>
+            <span className="flex items-center gap-2 text-[12.5px] font-bold text-ink">
+              <Icon name="logout" size={16} className="text-ink-mute" />
+              退出登录
+            </span>
+            <span className="text-[11px] font-semibold text-ink-mute">点击退出</span>
+          </button>
         </form>
       </section>
     </div>
