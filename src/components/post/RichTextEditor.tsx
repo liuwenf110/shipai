@@ -5,6 +5,37 @@ import { Icon } from "@/components/Icon";
 import { withBasePath } from "@/lib/base-path";
 import { cn } from "@/lib/utils";
 
+/** HTML 安全转义纯文本段（不处理 URL） */
+function escapePlainText(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * 将纯文本中的 URL 自动包成 <a>（保留 URL 两侧的非空白字符），包括：
+ * - 带协议的 http(s)://…
+ * - 无协议但含常见域名后缀的：www.、mp.weixin.qq.com、与后面包含 .com/.cn/.net 等 TLD 的长域名。
+ * 先转义后插入，避免 HTML 注入。服务端净化会保留 <a> 并强制 target=_blank。
+ */
+function linkifyPlainText(text: string): string {
+  const escaped = escapePlainText(text);
+  // 匹配 URL 主体：可选协议 + 域名(含子域) + 可选端口 + 可选路径/查询/锚点
+  // 末尾排除常见中文标点与句号结尾（避免粘“看这个 https://x.com/abc。”把句号塑进 href）
+  const urlRe =
+    /(?:https?:\/\/|www\.|mp\.weixin\.qq\.com)[^\s<>"]+/gi;
+  return escaped.replace(urlRe, (raw) => {
+    // 剔掉尾部可能粘上的中文标点与句点
+    const trimmed = raw.replace(/[，。；、：！？)\]》〉]+$/u, "");
+    if (!trimmed) return raw;
+    const href = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const tail = raw.slice(trimmed.length);
+    return `<a href="${href}">${trimmed}</a>${tail}`;
+  });
+}
+
 /**
  * 轻量富文本正文编辑器（发帖/编辑帖共用）：
  * - contentEditable 承载正文，隐藏 textarea 同名提交 HTML 给 Server Action（服务端净化入库）；
@@ -96,12 +127,13 @@ export function RichTextEditor({
       imageFiles.forEach((file) => void insertImage(file));
       return;
     }
-    // 纯文本整段是 URL 时转成可点击链接；其余（含富文本粘贴）走浏览器默认，入库前服务端净化
-    const text = event.clipboardData.getData("text/plain").trim();
-    if (/^https?:\/\/\S+$/i.test(text)) {
+    // 纯文本中自动识别 URL（含微信不带协议的 mp.weixin.qq.com 与 www. 开头）转为可点链接；其余走浏览器默认，入库前服务端净化
+    const text = event.clipboardData.getData("text/plain");
+    if (!text) return;
+    const linkified = linkifyPlainText(text);
+    if (linkified !== escapePlainText(text)) {
       event.preventDefault();
-      const safe = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
-      exec("insertHTML", `<a href="${safe}">${safe}</a>&nbsp;`);
+      exec("insertHTML", `${linkified}&nbsp;`);
     }
   }
 

@@ -24,7 +24,7 @@ import { pickUserIdentity } from "@/lib/identity";
 import { listMentionCandidates } from "@/lib/mention";
 import { withCommentIdentity } from "@/lib/revive";
 import { audienceOfUserOrAdmin, canAccessFaction } from "@/lib/scope";
-import { looksRichText, prepareRichTextForRender, richTextToPlainText } from "@/lib/rich-text";
+import { looksRichText, prepareRichTextForRender, richTextToPlainText, linkifyPlainText } from "@/lib/rich-text";
 import { formatDateTime, splitList } from "@/lib/utils";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -207,9 +207,11 @@ export default async function PostPage({
                 dangerouslySetInnerHTML={{ __html: prepareRichTextForRender(post.content) }}
               />
             ) : (
-              <p className="mt-2 whitespace-pre-wrap text-[14px] leading-[1.75] text-ink-soft">
-                {post.content}
-              </p>
+              <div
+                className="post-rich mt-2 whitespace-pre-wrap text-[14px] leading-[1.75] text-ink-soft"
+                // 纯文本老帖保留换行同时把内面裸 URL 自动包成可点链接
+                dangerouslySetInnerHTML={{ __html: linkifyPlainText(post.content).replace(/\n/g, "<br>") }}
+              />
             )}
 
             {post.linkUrl ? (

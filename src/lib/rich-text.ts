@@ -91,3 +91,29 @@ export function extractRichImagePaths(html: string): string[] {
 export function prepareRichTextForRender(html: string): string {
   return sanitizeRichText(html).replaceAll('src="/uploads/', `src="${BASE_PATH}/uploads/`);
 }
+
+/** HTML 安全转义纯文本段 */
+function escapePlainTextSegment(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * 将纯文本中的 URL 自动包成 <a>（先转义后插入）：包括 http(s)://…，www. 开头，
+
+ * 与 mp.weixin.qq.com 开头的无协议微信文章链接。服务端净化会保留 <a> 并强制 target=_blank。
+ */
+export function linkifyPlainText(text: string): string {
+  const escaped = escapePlainTextSegment(text);
+  const urlRe = /(?:https?:\/\/|www\.|mp\.weixin\.qq\.com)[^\s<>"]+/gi;
+  return escaped.replace(urlRe, (raw) => {
+    const trimmed = raw.replace(/[，。；、：！？)\]》〉]+$/u, "");
+    if (!trimmed) return raw;
+    const href = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const tail = raw.slice(trimmed.length);
+    return `<a href="${href}">${trimmed}</a>${tail}`;
+  });
+}
