@@ -467,7 +467,7 @@ model InviteCode {
 model Notification {
   id        String    @id @default(cuid())
   userId    String
-  type      String // VERIFY | LEADER | POST | COMMENT | MENTION | ACTIVITY | MESSAGE | SYSTEM
+  type      String // VERIFY | LEADER | POST | COMMENT | MENTION | ACTIVITY | MESSAGE | FOLLOW | SYSTEM
   title     String
   body      String?
   link      String?
