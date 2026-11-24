@@ -297,11 +297,11 @@ export default async function FactionPage({
             </div>
           </div>
 
-          {/* 派主信息栏：有派主时展示头像/昵称/认证徒章/公司/简介，点头像或卡片到个人主页 */}
+          {/* 派主信息栏：有派主时展示头像/昵称/认证徒章/公司/简介，按需收缩宽度，点击整块到个人主页 */}
           {leaderWithIdentity ? (
             <Link
               href={`/users/${leaderWithIdentity.id}`}
-              className="relative mt-3 flex items-center gap-2.5 rounded-2xl bg-white/70 px-3 py-2 backdrop-blur transition hover:bg-white/90"
+              className="relative mt-3 inline-flex max-w-full items-center gap-2.5 rounded-2xl bg-white/70 px-3 py-2 backdrop-blur transition hover:bg-white/90"
             >
               <UserAvatar
                 id={leaderWithIdentity.id}
@@ -310,7 +310,7 @@ export default async function FactionPage({
                 src={leaderWithIdentity.avatarImage}
                 size="md"
               />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="truncate text-[13px] font-black text-ink">{leaderWithIdentity.nickname}</span>
                   <Badge tone="brand">认证派主</Badge>
@@ -322,7 +322,6 @@ export default async function FactionPage({
                   {leaderWithIdentity.bio?.trim() || "负责本派活动组织与内容治理"}
                 </p>
               </div>
-              <span className="shrink-0 text-[11px] font-semibold text-ink/60">查看主页 →</span>
             </Link>
           ) : null}
 
