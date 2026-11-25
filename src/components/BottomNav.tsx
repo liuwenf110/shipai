@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Icon, type IconName } from "@/components/Icon";
 import { stripBasePath } from "@/lib/base-path";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,14 @@ export function BottomNav({
 }) {
   // usePathname 在子路径部署时会带上前缀，先剥掉再比较高亮
   const pathname = stripBasePath(usePathname());
+  const router = useRouter();
+
+  // 点当前已所在的标签时，Link 到相同路由是空操作（表现为“点了没反应”）；
+  // 这里改成刷新当前页数据，保证每次点击都有反馈
+  function onTabClick(href: string) {
+    const target = href === "/" ? "/" : href;
+    if (target === pathname) router.refresh();
+  }
 
   // 未登录时不展示「发现」「消息」入口（发现页仅登录可见，消息无内容可看）
   const leading = ITEMS.slice(0, 2).filter((item) => signedIn || item.href !== "/discover");
@@ -36,7 +44,12 @@ export function BottomNav({
     <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-ink-line/80 bg-white/92 backdrop-blur-xl md:hidden">
       <div className="relative mx-auto flex max-w-md items-end justify-around px-2 pt-1.5">
         {leading.map((item) => (
-          <NavItem key={item.href} item={item} active={isActive(item.href)} />
+          <NavItem
+            key={item.href}
+            item={item}
+            active={isActive(item.href)}
+            onClick={() => onTabClick(item.href)}
+          />
         ))}
 
         <Link
@@ -55,6 +68,7 @@ export function BottomNav({
             key={item.href}
             item={item}
             active={isActive(item.href)}
+            onClick={() => onTabClick(item.href)}
             // 私信不再写通知后，底部消息角标要自己合并两类未读，否则收私信无提示
             badge={item.href === "/notifications" ? unreadCount + unreadMessages : 0}
           />
@@ -68,16 +82,19 @@ function NavItem({
   item,
   active,
   badge = 0,
+  onClick,
 }: {
   item: { href: string; label: string; icon: IconName };
   active: boolean;
   badge?: number;
+  onClick?: () => void;
 }) {
   return (
     <Link
       href={item.href}
+      onClick={onClick}
       className={cn(
-        "relative flex w-16 flex-col items-center gap-0.5 rounded-xl py-2 transition",
+        "relative flex w-16 select-none flex-col items-center gap-0.5 rounded-xl py-2 transition active:scale-95",
         active ? "text-ink" : "text-ink-mute",
       )}
     >
