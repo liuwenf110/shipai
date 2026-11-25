@@ -9,12 +9,58 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { normalizeEmail } from "@/lib/utils";
 import { findEmailOwner } from "@/lib/email-identity";
-import { checkUserText } from "@/lib/sec";
+import { checkUserText, submitUserImageCheck } from "@/lib/sec";
+import { saveProofFile } from "@/lib/upload";
 import { clearWxNeedNicknameFlag } from "@/lib/wx";
 import type { ActionState } from "@/lib/types";
 
 function done(message: string): never {
   redirect(`/me?ok=${encodeURIComponent(message)}`);
+}
+
+// 头像允许的 MIME 与大小上限（与派主照片同一口径：saveProofFile 白名单含 PDF/HEIC，头像只收图）
+const AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const AVATAR_MAX_SIZE = 3 * 1024 * 1024;
+
+/**
+ * 用户自助头像：写入 User.avatarImage，与派主照片同一字段、同一展示链（个人主页 / 派主墙 / 帖子评论等）。
+ * 支持上传与移除；图片走 mediaCheckAsync 异步送检，命中 risky 由回调清空回落字母头像。
+ */
+export async function updateAvatarAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser("/me");
+
+  if (formData.get("action") === "remove") {
+    await prisma.user.update({ where: { id: user.id }, data: { avatarImage: null } });
+    revalidatePath("/me");
+    revalidatePath("/");
+    revalidatePath("/discover");
+    done("已移除头像，将显示字母头像");
+  }
+
+  const image = formData.get("image");
+  if (!(image instanceof File) || image.size === 0) return { error: "请选择要上传的头像" };
+  if (!AVATAR_TYPES.includes(image.type)) return { error: "头像仅支持 JPG / PNG / WEBP 格式" };
+  if (image.size > AVATAR_MAX_SIZE) return { error: "头像不能超过 3MB" };
+
+  let imagePath: string | null;
+  try {
+    imagePath = await saveProofFile(image);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "头像上传失败" };
+  }
+  if (!imagePath) return { error: "头像上传失败，请重试" };
+
+  await prisma.user.update({ where: { id: user.id }, data: { avatarImage: imagePath } });
+  // scene 1 资料：异步送检，命中违规由回调清空，不阻塞上传
+  await submitUserImageCheck(user.id, imagePath, { type: "AVATAR", id: user.id }, 1);
+
+  revalidatePath("/me");
+  revalidatePath("/");
+  revalidatePath("/discover");
+  done("头像已更新");
 }
 
 // 昵称不限字符集：中文、英文字母、数字与常见分隔符均可，只限长度

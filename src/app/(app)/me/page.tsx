@@ -10,6 +10,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { Disclosure } from "@/components/Disclosure";
 import { logoutAction } from "@/lib/actions/auth";
 import { ProfileForm } from "@/components/account/ProfileForm";
+import { AvatarForm } from "@/components/account/AvatarForm";
 import { PasswordForm } from "@/components/account/PasswordForm";
 import { signupActivityAction } from "@/lib/actions/faction";
 import { categoryOf, EMPLOYMENT_KIND, EMPLOYMENT_STATUS } from "@/lib/constants";
@@ -79,7 +80,7 @@ export default async function MePage({
       <div className="card relative overflow-hidden p-5">
         <div className="pointer-events-none absolute -right-10 -top-14 h-40 w-40 rounded-full bg-brand/10 blur-2xl" />
         <div className="flex items-center gap-3.5">
-          <Avatar name={viewer.user.nickname} color={viewer.user.avatarColor} size="lg" />
+          <Avatar name={viewer.user.nickname} color={viewer.user.avatarColor} src={viewer.user.avatarImage} size="lg" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <h1 className="text-[19px] font-black tracking-tight">{viewer.user.nickname}</h1>
@@ -110,8 +111,27 @@ export default async function MePage({
         </div>
       </div>
 
-      {/* 账号自助：编辑资料 / 修改密码 */}
+      {/* 账号自助：设置头像 / 编辑资料 / 修改密码 */}
       <div className="mt-3 space-y-2">
+        <Disclosure
+          className="card overflow-hidden"
+          summaryClassName="flex list-none items-center justify-between px-4 py-3"
+          summary={
+            <>
+              <span className="flex items-center gap-2 text-[12.5px] font-bold text-ink">
+                <Icon name="user" size={15} className="text-ink-mute" />设置头像
+              </span>
+              <Icon name="right" size={14} className="text-ink-mute" />
+            </>
+          }
+        >
+          <AvatarForm
+            name={viewer.user.nickname}
+            color={viewer.user.avatarColor}
+            image={viewer.user.avatarImage ?? null}
+          />
+        </Disclosure>
+
         <Disclosure
           className="card overflow-hidden"
           summaryClassName="flex list-none items-center justify-between px-4 py-3"
