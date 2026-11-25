@@ -3,26 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { stripBasePath, withBasePath } from "@/lib/base-path";
-
-declare global {
-  interface Window {
-    __wxjs_environment?: string;
-    wx?: {
-      miniProgram?: {
-        postMessage(opts: { data: unknown }): void;
-        navigateTo(opts: { url: string; fail?: (err: unknown) => void }): void;
-      };
-    };
-  }
-}
-
-/** 客户端小程序 web-view 判定：官方环境变量为主，UA 与 from=wxapp 参数兜底 */
-function inMiniProgramWebView() {
-  if (typeof window === "undefined") return false;
-  if (window.__wxjs_environment === "miniprogram") return true;
-  if (/miniProgram/i.test(window.navigator.userAgent)) return true;
-  return window.location.search.includes("from=wxapp");
-}
+import { inMiniProgramWebView } from "@/lib/wx-jssdk";
 
 /**
  * 构造分享用的查询串：只携带 ref=share 与环境标记 from=wxapp，

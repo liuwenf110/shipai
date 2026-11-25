@@ -3,26 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { stripBasePath, withBasePath } from "@/lib/base-path";
-
-declare global {
-  interface Window {
-    __wxjs_environment?: string;
-    wx?: {
-      miniProgram?: {
-        postMessage(opts: { data: unknown }): void;
-        navigateTo(opts: { url: string; fail?: (err: unknown) => void }): void;
-      };
-    };
-  }
-}
-
-/** 小程序 web-view 判定：官方环境变量为主，UA 与 from=wxapp 参数兜底（与 FactionShareButton 同口径） */
-function inMiniProgramWebView() {
-  if (typeof window === "undefined") return false;
-  if (window.__wxjs_environment === "miniprogram") return true;
-  if (/miniProgram/i.test(window.navigator.userAgent)) return true;
-  return window.location.search.includes("from=wxapp");
-}
+import { ensureJweixin, inMiniProgramWebView, mpBridgeReady } from "@/lib/wx-jssdk";
 
 /** 分享链接的查询串：只保留环境标记 from=wxapp 与来源 ref=share，剥掉一次性参数 */
 function shareQuery(search: string, keepFrom = true) {
@@ -122,12 +103,13 @@ export function PostShareButton({
       q.set("kind", kind);
       const target = `/pages/share/index?${q.toString()}`;
       const payload = { type: "share", title, path: mpPath, image: imageAbs };
-      const goto = () => {
+      // bridge 就绪时直接同步跳，避免任何异步延迟；未就绪才等 jweixin
+      const doNav = () => {
         if (window.wx?.miniProgram?.navigateTo) {
           window.wx.miniProgram.navigateTo({
             url: target,
             fail: () => {
-              // 老壳没有 pages/share 时降级：直接 navigate 到 webview 页 + 灯塔已追平 path
+              // 老壳没有 pages/share 时降级：postMessage 给灯塔 + toast 引导右上角
               window.wx?.miniProgram?.postMessage({ data: payload });
               showToast("点右上角「···」→ 发送给朋友");
             },
@@ -136,18 +118,17 @@ export function PostShareButton({
         }
         return false;
       };
-      if (goto()) return;
-      // jweixin 未注入时先懒加载，加载成功立刻跳；失败则降级 postMessage + toast，不留给用户无反馈
-      const script = document.createElement("script");
-      script.src = "https://res.wx.qq.com/open/js/jweixin-1.6.0.js";
-      script.onload = () => {
-        if (!goto()) {
+      if (mpBridgeReady() && doNav()) return;
+      // bridge 未就绪（灯塔预加载可能还没完成）：等 ensureJweixin resolve 后再跳
+      void ensureJweixin().then((ready) => {
+        if (ready && doNav()) return;
+        if (ready) {
           window.wx?.miniProgram?.postMessage({ data: payload });
           showToast("已准备分享，点右上角「···」→ 发送给朋友");
+        } else {
+          showToast("分享组件加载失败，请重启小程序重试");
         }
-      };
-      script.onerror = () => showToast("分享组件加载失败，请重启小程序重试");
-      document.head.appendChild(script);
+      });
       return;
     }
 
