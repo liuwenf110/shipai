@@ -591,20 +591,19 @@ async function PostsTab({
     <div className="space-y-3">
       {user && isMember ? (
         <PostComposer factionId={factionId} factionName={factionName} isLeader={isManager} />
+      ) : user && verified ? (
+        // 已登录 + 已认证的非成员：顶部 hero 已有「加入这个派」，此处不再重复一个加入按钮
+        null
       ) : (
         <div className="card flex flex-wrap items-center justify-between gap-2 px-4 py-3">
           <p className="text-[12px] text-ink-mute">
-            {!user
-              ? "登录并加入本派后即可发帖"
-              : !verified
-                ? "完成公司身份认证后才能加入并发帖"
-                : "加入本派后即可发帖互动"}
+            {!user ? "登录并加入本派后即可发帖" : "完成公司身份认证后才能加入并发帖"}
           </p>
           <Link
-            href={!user ? `/login?next=${encodeURIComponent(path)}` : verified ? `${path}` : "/verify"}
+            href={!user ? `/login?next=${encodeURIComponent(path)}` : "/verify"}
             className="btn-ghost btn-sm"
           >
-            {!user ? "去登录" : verified ? "加入本派" : "去认证"}
+            {!user ? "去登录" : "去认证"}
           </Link>
         </div>
       )}
