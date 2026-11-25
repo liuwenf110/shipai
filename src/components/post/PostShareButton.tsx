@@ -10,7 +10,7 @@ declare global {
     wx?: {
       miniProgram?: {
         postMessage(opts: { data: unknown }): void;
-        navigateTo(opts: { url: string }): void;
+        navigateTo(opts: { url: string; fail?: (err: unknown) => void }): void;
       };
     };
   }
@@ -109,33 +109,44 @@ export function PostShareButton({
 
   async function onShare() {
     const { url, mpPath, imageAbs } = buildPayload();
+    // 先给一个可见反馈，避免 jweixin 懒加载失败时用户以为卡了
+    showToast("准备分享…");
 
     // 小程序 web-view：无法直接调起微信原生分享面板，H5 能做的最直达动作就是 navigateTo 原生中转页，
     // 中转页里一个 open-type="share" 大按钮一下就拉到微信原生分享面板（卡片标题/落地/封面三要素直接传参）
     if (inMiniProgramWebView()) {
-      const goto = () => {
-        const q = new URLSearchParams();
-        q.set("title", title);
-        q.set("path", mpPath);
-        if (imageAbs) q.set("image", imageAbs);
-        q.set("kind", kind);
-        window.wx?.miniProgram?.navigateTo({ url: `/pages/share/index?${q.toString()}` });
-      };
-      if (window.wx?.miniProgram?.navigateTo) {
-        goto();
-        return;
-      }
-      // jweixin 未注入时先懒加载，加载完立刻跳，避免需用户重一次点
+      const q = new URLSearchParams();
+      q.set("title", title);
+      q.set("path", mpPath);
+      if (imageAbs) q.set("image", imageAbs);
+      q.set("kind", kind);
+      const target = `/pages/share/index?${q.toString()}`;
       const payload = { type: "share", title, path: mpPath, image: imageAbs };
+      const goto = () => {
+        if (window.wx?.miniProgram?.navigateTo) {
+          window.wx.miniProgram.navigateTo({
+            url: target,
+            fail: () => {
+              // 老壳没有 pages/share 时降级：直接 navigate 到 webview 页 + 灯塔已追平 path
+              window.wx?.miniProgram?.postMessage({ data: payload });
+              showToast("点右上角「···」→ 发送给朋友");
+            },
+          });
+          return true;
+        }
+        return false;
+      };
+      if (goto()) return;
+      // jweixin 未注入时先懒加载，加载成功立刻跳；失败则降级 postMessage + toast，不留给用户无反馈
       const script = document.createElement("script");
       script.src = "https://res.wx.qq.com/open/js/jweixin-1.6.0.js";
       script.onload = () => {
-        if (window.wx?.miniProgram?.navigateTo) goto();
-        else {
+        if (!goto()) {
           window.wx?.miniProgram?.postMessage({ data: payload });
           showToast("已准备分享，点右上角「···」→ 发送给朋友");
         }
       };
+      script.onerror = () => showToast("分享组件加载失败，请重启小程序重试");
       document.head.appendChild(script);
       return;
     }
@@ -169,14 +180,20 @@ export function PostShareButton({
       <button
         type="button"
         aria-label={label}
-        onClick={() => void onShare()}
-        className="flex items-center gap-1 text-[11.5px] font-semibold text-ink-mute transition hover:text-brand"
+        onClick={(event) => {
+          // 避免在 form 里默默变成 submit，导致页面刷新且 onShare 不上跑
+          event.preventDefault();
+          event.stopPropagation();
+          void onShare();
+        }}
+        className="flex items-center gap-1 text-[11.5px] font-semibold text-ink-mute transition hover:text-brand active:scale-[0.96]"
       >
         <Icon name="share" size={14} />
         分享
       </button>
       {toast ? (
-        <span className="pointer-events-none absolute right-full top-1/2 z-30 -translate-y-1/2 whitespace-nowrap rounded-full bg-ink px-2.5 py-1 text-[10.5px] font-semibold text-white shadow-md">
+        // 把提示固定在屏幕底部居中，避免按钮靠右时 right-full 将 toast 顶到屏外看不见
+        <span className="pointer-events-none fixed left-1/2 top-[78vh] z-50 -translate-x-1/2 whitespace-nowrap rounded-full bg-ink/90 px-3.5 py-1.5 text-[11.5px] font-semibold text-white shadow-lg">
           {toast}
         </span>
       ) : null}

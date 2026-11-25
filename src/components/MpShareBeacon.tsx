@@ -10,7 +10,7 @@ declare global {
     wx?: {
       miniProgram?: {
         postMessage(opts: { data: unknown }): void;
-        navigateTo(opts: { url: string }): void;
+        navigateTo(opts: { url: string; fail?: (err: unknown) => void }): void;
       };
     };
   }
