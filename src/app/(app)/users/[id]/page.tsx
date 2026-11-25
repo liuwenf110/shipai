@@ -90,7 +90,7 @@ export default async function UserPublicPage({
 
       <div className="card p-5">
         <div className="flex items-start gap-4">
-          <Avatar name={displayName} color={user.avatarColor} size="xl" />
+          <Avatar name={displayName} color={user.avatarColor} src={user.avatarImage} size="xl" />
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-[20px] font-black tracking-tight text-ink">
               {displayName}
