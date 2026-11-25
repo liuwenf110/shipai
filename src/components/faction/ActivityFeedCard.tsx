@@ -27,7 +27,7 @@ export type ActivityFeedRow = {
   pinned: boolean;
   creatorId: string;
   creator: { id: string; nickname: string; identity: UserIdentity | null };
-  signups: { id: string; user: { id: string; nickname: string; avatarColor: string } }[];
+  signups: { id: string; user: { id: string; nickname: string; avatarColor: string; avatarImage?: string | null } }[];
 };
 
 export function ActivityFeedCard({
@@ -218,6 +218,7 @@ export function ActivityFeedCard({
                 id={signup.user.id}
                 name={signup.user.nickname}
                 color={signup.user.avatarColor}
+                src={signup.user.avatarImage ?? null}
                 size="xs"
                 ring
               />

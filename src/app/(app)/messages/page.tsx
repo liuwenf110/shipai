@@ -68,7 +68,7 @@ export default async function MessagesListPage() {
   );
 
   type Entry =
-    | { kind: "dm"; id: string; at: Date; name: string; color: string; preview: string | null; unread: number }
+    | { kind: "dm"; id: string; at: Date; name: string; color: string; image: string | null; preview: string | null; unread: number }
     | { kind: "group"; id: string; at: Date; name: string; preview: string | null; unread: number };
 
   const entries: Entry[] = [
@@ -80,6 +80,7 @@ export default async function MessagesListPage() {
         at: conversation.lastMessageAt,
         name: other.nickname,
         color: other.avatarColor,
+        image: other.avatarImage,
         preview: conversation.lastPreview,
         unread: unreadMap.get(conversation.id) ?? 0,
       };
@@ -116,7 +117,7 @@ export default async function MessagesListPage() {
                   <Icon name="users" size={18} />
                 </span>
               ) : (
-                <Avatar name={entry.name} color={entry.color} size="md" className="cursor-default" />
+                <Avatar name={entry.name} color={entry.color} src={entry.image} size="md" className="cursor-default" />
               )}
               <Link
                 href={entry.kind === "group" ? `/messages/group/${entry.id}` : `/messages/${entry.id}`}

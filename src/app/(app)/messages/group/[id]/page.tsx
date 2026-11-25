@@ -93,6 +93,7 @@ export default async function GroupChatPage({
             key={member.userId}
             name={member.user.nickname}
             color={member.user.avatarColor}
+            src={member.user.avatarImage}
             size="xs"
           />
         ))}

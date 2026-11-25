@@ -241,7 +241,7 @@ export function CommentSection({
           comments.map((comment) => (
             <div key={comment.id} className="py-2.5">
               <div className="flex items-start gap-2.5">
-                <UserAvatar id={comment.author.id} name={comment.author.nickname} color={comment.author.avatarColor} size="xs" />
+                <UserAvatar id={comment.author.id} name={comment.author.nickname} color={comment.author.avatarColor} src={comment.author.avatarImage} size="xs" />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[11.5px] font-bold text-ink">{comment.author.nickname}</span>

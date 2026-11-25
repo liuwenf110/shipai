@@ -207,7 +207,7 @@ export default async function PostPage({
 
           <article className="card mt-3 p-4">
             <div className="flex items-center gap-2.5">
-              <UserAvatar id={post.author.id} name={post.author.nickname} color={post.author.avatarColor} size="md" />
+              <UserAvatar id={post.author.id} name={post.author.nickname} color={post.author.avatarColor} src={post.author.avatarImage} size="md" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-[13.5px] font-bold text-ink">{post.author.nickname}</span>

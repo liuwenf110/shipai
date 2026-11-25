@@ -44,7 +44,7 @@ export function PostCard({
   return (
     <article className="card p-4">
       <div className="flex items-center gap-2.5">
-        <UserAvatar id={post.author.id} name={post.author.nickname} color={post.author.avatarColor} size="sm" />
+        <UserAvatar id={post.author.id} name={post.author.nickname} color={post.author.avatarColor} src={post.author.avatarImage} size="sm" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="truncate text-[13px] font-bold text-ink">{post.author.nickname}</span>

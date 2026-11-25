@@ -20,7 +20,7 @@ export function UserAvatar({
   color?: string;
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   ring?: boolean;
-  /** 照片头像，只在派相关展示位传入；帖子/评论/后台继续字母头像 */
+  /** 照片头像（User.avatarImage）：凡数据里带该字段的展示位都应传入，缺图自动回落字母头像 */
   src?: string | null;
   className?: string;
 }) {

@@ -89,6 +89,7 @@ export default async function ActivityPage({
           id: true,
           nickname: true,
           avatarColor: true,
+          avatarImage: true,
           employments: {
             where: { status: "VERIFIED" },
             select: { companyId: true, kind: true, company: { select: { shortName: true } } },
@@ -97,7 +98,7 @@ export default async function ActivityPage({
       },
       signups: {
         where: { status: "GOING" },
-        include: { user: { select: { id: true, nickname: true, avatarColor: true, bio: true } } },
+        include: { user: { select: { id: true, nickname: true, avatarColor: true, avatarImage: true, bio: true } } },
         orderBy: { createdAt: "asc" },
       },
     },
@@ -295,7 +296,7 @@ export default async function ActivityPage({
         ) : null}
 
         <div className="flex items-center gap-2 border-t border-ink-line/60 px-4 py-3">
-          <UserAvatar id={activity.creator.id} name={activity.creator.nickname} color={activity.creator.avatarColor} size="xs" />
+          <UserAvatar id={activity.creator.id} name={activity.creator.nickname} color={activity.creator.avatarColor} src={activity.creator.avatarImage} size="xs" />
           <p className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-mute">
             <span>发起人 {activity.creator.nickname}</span>
             <CompanyBadge identity={creatorIdentity} showKind={false} showUnverified />
@@ -395,7 +396,7 @@ export default async function ActivityPage({
             <div className="divide-y divide-ink-line/60">
               {activity.signups.map((signup) => (
                 <div key={signup.id} className="flex items-center gap-2.5 px-4 py-2.5">
-                  <UserAvatar id={signup.user.id} name={signup.user.nickname} color={signup.user.avatarColor} size="sm" />
+                  <UserAvatar id={signup.user.id} name={signup.user.nickname} color={signup.user.avatarColor} src={signup.user.avatarImage} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="text-[12.5px] font-bold text-ink">{signup.user.nickname}</p>
                     <p className="truncate text-[10.5px] text-ink-mute">

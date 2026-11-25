@@ -916,7 +916,7 @@ async function MembersTab({
         const other = otherMap.get(member.userId);
         return (
           <div key={member.id} className="flex items-center gap-3 px-4 py-3">
-            <UserAvatar id={member.user.id} name={member.user.nickname} color={member.user.avatarColor} size="md" />
+            <UserAvatar id={member.user.id} name={member.user.nickname} color={member.user.avatarColor} src={member.user.avatarImage} size="md" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[13px] font-bold text-ink">{member.user.nickname}</span>

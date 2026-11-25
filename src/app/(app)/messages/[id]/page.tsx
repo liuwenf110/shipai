@@ -69,7 +69,7 @@ export default async function ConversationPage({
           href={`/users/${other.id}`}
           className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1 py-1 hover:bg-cream-sunk"
         >
-          <Avatar name={other.nickname} color={other.avatarColor} size="sm" />
+          <Avatar name={other.nickname} color={other.avatarColor} src={other.avatarImage} size="sm" />
           <div className="min-w-0">
             <p className="truncate text-[14px] font-bold text-ink">{other.nickname}</p>
             <p className="text-[10.5px] text-ink-mute">查看 TA 的主页</p>
@@ -111,7 +111,7 @@ export default async function ConversationPage({
           })
         ) : (
           <div className="flex h-full flex-col items-center justify-center py-10 text-center">
-            <Avatar name={other.nickname} color={other.avatarColor} size="lg" className="opacity-60" />
+            <Avatar name={other.nickname} color={other.avatarColor} src={other.avatarImage} size="lg" className="opacity-60" />
             <p className="mt-3 text-[13px] font-semibold text-ink">和 {other.nickname} 说点什么吧</p>
             <p className="mt-1 text-[11.5px] text-ink-mute">私信内容仅双方可见，请遵守社区规范</p>
           </div>

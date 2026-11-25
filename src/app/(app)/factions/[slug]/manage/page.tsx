@@ -262,7 +262,7 @@ export default async function ManagePage({
                     const crossInfo = otherMap.get(member.userId);
                     return (
                     <div key={member.id} className="flex items-center gap-2.5 px-4 py-3">
-                      <Avatar name={member.user.nickname} color={member.user.avatarColor} size="sm" />
+                      <Avatar name={member.user.nickname} color={member.user.avatarColor} src={member.user.avatarImage} size="sm" />
                       <div className="min-w-0 flex-1">
                         <p className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-bold text-ink">
                           {member.user.nickname}
@@ -324,7 +324,7 @@ export default async function ManagePage({
                   const crossInfo = otherMap.get(request.userId);
                   return (
                     <div key={request.id} className="flex items-center gap-2.5 px-4 py-3">
-                      <Avatar name={request.user.nickname} color={request.user.avatarColor} size="sm" />
+                      <Avatar name={request.user.nickname} color={request.user.avatarColor} src={request.user.avatarImage} size="sm" />
                       <div className="min-w-0 flex-1">
                         <p className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-bold text-ink">
                           {request.user.nickname}
@@ -382,7 +382,7 @@ export default async function ManagePage({
                   const crossInfo = otherMap.get(member.userId);
                   return (
                   <div key={member.id} className="flex items-center gap-2.5 px-4 py-2.5">
-                    <Avatar name={member.user.nickname} color={member.user.avatarColor} size="sm" />
+                    <Avatar name={member.user.nickname} color={member.user.avatarColor} src={member.user.avatarImage} size="sm" />
                     <div className="min-w-0 flex-1">
                       <p className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-bold text-ink">
                         {member.user.nickname}
@@ -463,7 +463,7 @@ export default async function ManagePage({
             postCards.map((post) => (
               <div key={post.id} className="card p-3.5">
                 <div className="flex items-start gap-2.5">
-                  <Avatar name={post.author.nickname} color={post.author.avatarColor} size="sm" />
+                  <Avatar name={post.author.nickname} color={post.author.avatarColor} src={post.author.avatarImage} size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-[12.5px] font-bold text-ink">{post.author.nickname}</span>

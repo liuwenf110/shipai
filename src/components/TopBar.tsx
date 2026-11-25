@@ -78,7 +78,7 @@ export function TopBar({
               </Link>
 
               <Link href="/me" aria-label="我的">
-                <Avatar name={viewer.user.nickname} color={viewer.user.avatarColor} size="sm" />
+                <Avatar name={viewer.user.nickname} color={viewer.user.avatarColor} src={viewer.user.avatarImage} size="sm" />
               </Link>
             </>
           ) : (

@@ -145,6 +145,7 @@ export default async function FollowsPage(props: {
                     id={user.id}
                     name={user.nickname}
                     color={user.avatarColor}
+                    src={user.avatarImage}
                     size="md"
                   />
                   <div className="min-w-0 flex-1">

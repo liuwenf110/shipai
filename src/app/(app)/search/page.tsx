@@ -254,7 +254,7 @@ export default async function SearchPage({
                     className="card block p-3 transition hover:shadow-float"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <Avatar name={post.author.nickname} color={post.author.avatarColor} size="xs" />
+                      <Avatar name={post.author.nickname} color={post.author.avatarColor} src={post.author.avatarImage} size="xs" />
                       <span className="text-[11.5px] font-bold text-ink">{post.author.nickname}</span>
                       <CompanyBadge
                         identity={pickUserIdentity(post.author.employments, post.faction.companyId)}
@@ -281,7 +281,7 @@ export default async function SearchPage({
               <div className="card divide-y divide-ink-line/60">
                 {users.map((user) => (
                   <div key={user.id} className="flex items-center gap-2.5 px-3.5 py-2.5">
-                    <UserAvatar id={user.id} name={user.nickname} color={user.avatarColor} size="sm" />
+                    <UserAvatar id={user.id} name={user.nickname} color={user.avatarColor} src={user.avatarImage} size="sm" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[12.5px] font-bold text-ink">{user.nickname}</p>
                       <p className="truncate text-[10.5px] text-ink-mute">
