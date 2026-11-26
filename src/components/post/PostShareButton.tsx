@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { stripBasePath, withBasePath } from "@/lib/base-path";
-import { ensureJweixin, inMiniProgramWebView, mpBridgeReady } from "@/lib/wx-jssdk";
+import { confirmMiniProgramEnv, inMiniProgramWebView, mpNavigateToPage } from "@/lib/wx-jssdk";
 
 /** 分享链接的查询串：只保留环境标记 from=wxapp 与来源 ref=share，剥掉一次性参数 */
 function shareQuery(search: string, keepFrom = true) {
@@ -20,8 +20,8 @@ function shareQuery(search: string, keepFrom = true) {
  * 不再弹内嵌的复制文本面板。
  * - 支持 navigator.share 的浏览器（微信内置 Safari/Chrome/iOS）：直接调起系统分享，
  *   分享内容为整页 URL + 帖标 + 摘要 + 首图，用户可继续选微信/微博/复制链接等；
- * - 小程序 web-view 内：H5 无法主动调起微信原生分享，把整页分享三要素 postMessage 给壳，
- *   并弹出「点右上角·发送给朋友」轻提示；
+ * - 小程序 web-view 内：H5 无法主动调起微信原生分享，navigateTo 到壳的原生中转页 pages/share，
+ *   由那一页的 open-type="share" 按钮一键拉起转发面板；真跳转失败时退回 postMessage + 右上角引导；
  * - 老浏览器兜底：直接复制整页链接到剪贴板并给出提示。
  */
 export function PostShareButton({
@@ -51,7 +51,7 @@ export function PostShareButton({
   function showToast(text: string) {
     setToast(text);
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToast(""), 2600);
+    toastTimer.current = window.setTimeout(() => setToast(""), 5000);
   }
 
   useEffect(() => () => {
@@ -88,47 +88,39 @@ export function PostShareButton({
     }
   }
 
+  /**
+   * 原生中转页的跳转地址。手工 encodeURIComponent 而不用 URLSearchParams：
+   * 后者会把空格编成 `+`，中转页 decodeURIComponent 后标题里就留下一个加号。
+   */
+  function mpShareTarget(mpPath: string, imageAbs: string) {
+    const parts = [
+      `title=${encodeURIComponent(title)}`,
+      `path=${encodeURIComponent(mpPath)}`,
+    ];
+    if (imageAbs) parts.push(`image=${encodeURIComponent(imageAbs)}`);
+    parts.push(`kind=${kind}`);
+    return `/pages/share/index?${parts.join("&")}`;
+  }
+
   async function onShare() {
     const { url, mpPath, imageAbs } = buildPayload();
-    // 先给一个可见反馈，避免 jweixin 懒加载失败时用户以为卡了
-    showToast("准备分享…");
 
-    // 小程序 web-view：无法直接调起微信原生分享面板，H5 能做的最直达动作就是 navigateTo 原生中转页，
-    // 中转页里一个 open-type="share" 大按钮一下就拉到微信原生分享面板（卡片标题/落地/封面三要素直接传参）
-    if (inMiniProgramWebView()) {
-      const q = new URLSearchParams();
-      q.set("title", title);
-      q.set("path", mpPath);
-      if (imageAbs) q.set("image", imageAbs);
-      q.set("kind", kind);
-      const target = `/pages/share/index?${q.toString()}`;
+    // 小程序 web-view：H5 自身调不起微信转发面板，最直达的做法是 navigateTo 到壳的原生中转页，
+    // 那一页有一个 open-type="share" 大按钮，点一下就拉起原生分享面板。
+    // 注意 from=wxapp 只是壳拼的参数，转发出去的链接被同事在微信内置浏览器里打开时同样带着它，
+    // 那种环境没有 bridge，navigateTo 会「只弹提示然后没动静」，所以先用官方 getEnv 坐实环境。
+    if (inMiniProgramWebView() && (await confirmMiniProgramEnv())) {
       const payload = { type: "share", title, path: mpPath, image: imageAbs };
-      // bridge 就绪时直接同步跳，避免任何异步延迟；未就绪才等 jweixin
-      const doNav = () => {
-        if (window.wx?.miniProgram?.navigateTo) {
-          window.wx.miniProgram.navigateTo({
-            url: target,
-            fail: () => {
-              // 老壳没有 pages/share 时降级：postMessage 给灯塔 + toast 引导右上角
-              window.wx?.miniProgram?.postMessage({ data: payload });
-              showToast("点右上角「···」→ 发送给朋友");
-            },
-          });
-          return true;
-        }
-        return false;
-      };
-      if (mpBridgeReady() && doNav()) return;
-      // bridge 未就绪（灯塔预加载可能还没完成）：等 ensureJweixin resolve 后再跳
-      void ensureJweixin().then((ready) => {
-        if (ready && doNav()) return;
-        if (ready) {
-          window.wx?.miniProgram?.postMessage({ data: payload });
-          showToast("已准备分享，点右上角「···」→ 发送给朋友");
-        } else {
-          showToast("分享组件加载失败，请重启小程序重试");
-        }
-      });
+      const nav = await mpNavigateToPage(mpShareTarget(mpPath, imageAbs));
+      if (nav.ok) return;
+      // 两条通道都没跳走：把分享意图 postMessage 给灯塔，保证右上角转发也落到当前这条内容，
+      // 并把失败原因回显出来，方便真机一眼定位（页面没跳走时提示一定看得见）。
+      window.wx?.miniProgram?.postMessage({ data: payload });
+      showToast(
+        nav.errMsg
+          ? `分享跳转失败：${nav.errMsg}｜可点右上角「···」→ 发送给朋友`
+          : "点右上角「···」→ 发送给朋友",
+      );
       return;
     }
 
@@ -173,8 +165,9 @@ export function PostShareButton({
         分享
       </button>
       {toast ? (
-        // 把提示固定在屏幕底部居中，避免按钮靠右时 right-full 将 toast 顶到屏外看不见
-        <span className="pointer-events-none fixed left-1/2 top-[78vh] z-50 -translate-x-1/2 whitespace-nowrap rounded-full bg-ink/90 px-3.5 py-1.5 text-[11.5px] font-semibold text-white shadow-lg">
+        // 把提示固定在屏幕底部居中，避免按钮靠右时 right-full 将 toast 顶到屏外看不见；
+        // 失败原因回显较长，所以限宽允许换行而不是 nowrap
+        <span className="pointer-events-none fixed left-1/2 top-[78vh] z-50 max-w-[84vw] -translate-x-1/2 whitespace-normal break-all rounded-2xl bg-ink/90 px-3.5 py-1.5 text-center text-[11.5px] font-semibold leading-relaxed text-white shadow-lg">
           {toast}
         </span>
       ) : null}
