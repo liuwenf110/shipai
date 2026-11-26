@@ -8,6 +8,7 @@ import { Badge } from "@/components/Badge";
 import { EmptyState } from "@/components/Section";
 import { QueryNotice } from "@/components/Notice";
 import { SubmitButton } from "@/components/SubmitButton";
+import { LeaderWallPhotoInput } from "@/components/admin/LeaderWallPhotoInput";
 
 export const metadata = { title: "派主墙管理" };
 
@@ -110,17 +111,15 @@ export default async function AdminLeaderWallPage({
               >
                 <input type="hidden" name="factionId" value={faction.id} />
 
-                <label className="block md:col-span-2">
+                <div className="block md:col-span-2">
                   <span className="text-[10.5px] font-bold text-ink-mute">
                     派主照片（JPG / PNG / WEBP，3MB 内；不选文件则保留当前照片）
                   </span>
-                  <input
-                    type="file"
-                    name="image"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="input mt-1 py-1.5 text-[12px]"
+                  <LeaderWallPhotoInput
+                    id={`leader-photo-${faction.id}`}
+                    current={leader.avatarImage ?? null}
                   />
-                </label>
+                </div>
 
                 <label className="block">
                   <span className="text-[10.5px] font-bold text-ink-mute">派主昵称</span>
