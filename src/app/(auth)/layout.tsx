@@ -4,7 +4,7 @@ import { Icon } from "@/components/Icon";
 import { PLATFORM_SLOGAN } from "@/lib/constants";
 
 const POINTS = [
-  { icon: "shield" as const, title: "真身份", desc: "企业邮箱域名 + 离职材料双通道审核" },
+  { icon: "shield" as const, title: "真身份", desc: "在职、离职同事均可认证加入" },
   { icon: "compass" as const, title: "真同好", desc: "瑜伽、户外、徒步、桌游，按兴趣成派" },
   { icon: "flag" as const, title: "真派主", desc: "认证派主可管理成员、活动与内容" },
 ];
