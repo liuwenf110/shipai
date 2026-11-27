@@ -8,18 +8,23 @@ import { revivePost, type PostJson } from "@/lib/revive";
 /** 服务端渲染好的活动卡插槽：at 表示插在第几条帖子前面 */
 export type FeedSlot = { at: number; node: ReactNode };
 
-/** 首页动态流：首屏服务端渲染，后续分页通过 /api/v1/feed 拉取 */
+/** 首页动态流：首屏服务端渲染，后续分页默认走 /api/v1/feed（发现页新鲜事传 endpoint 换成 /api/v1/news） */
 export function FeedStream({
   initialPosts,
   initialHasMore,
+  endpoint = "/api/v1/feed",
   pageSize = 8,
   redirectTo = "/",
+  compact = false,
   activitySlots = [],
 }: {
   initialPosts: PostJson[];
   initialHasMore: boolean;
+  /** 分页数据源：调用方首屏与服务端渲染必须同源同口径，否则页 2 会重列或漏列 */
+  endpoint?: string;
   pageSize?: number;
   redirectTo?: string;
+  compact?: boolean;
   activitySlots?: FeedSlot[];
 }) {
   const [posts, setPosts] = useState<PostJson[]>(initialPosts);
@@ -35,7 +40,7 @@ export function FeedStream({
 
     try {
       const response = await apiGet<unknown[]>(
-        `/api/v1/feed?page=${page + 1}&pageSize=${pageSize}`,
+        `${endpoint}?page=${page + 1}&pageSize=${pageSize}`,
       );
       const next = response.data.map(revivePost);
       setPosts((items) => {
@@ -63,7 +68,7 @@ export function FeedStream({
             .map((slot, slotIndex) => (
               <Fragment key={`slot-${index}-${slotIndex}`}>{slot.node}</Fragment>
             ))}
-          <PostCard post={post} liked={Boolean(post.liked)} redirectTo={redirectTo} />
+          <PostCard post={post} liked={Boolean(post.liked)} redirectTo={redirectTo} compact={compact} />
         </Fragment>
       ))}
 

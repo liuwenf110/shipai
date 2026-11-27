@@ -1,3 +1,8 @@
+"use client";
+
+// 图标整体标为客户端组件：它在服务端组件里被大量嵌套，若不划边界，每个实例的 svg/path
+// 元素树会被当成 RSC 元素写进 flight 载荷（实测发现页 58 个图标多花了近 10KB）；
+// 划成客户端后载荷里只存 {name,size,className} 几个属性，同样的 markup 仍会 SSR 到 HTML 里。
 type IconName =
   | "home"
   | "compass"

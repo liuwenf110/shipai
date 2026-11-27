@@ -12,7 +12,9 @@ import { audienceOfViewer, factionAccessWhere, factionScopeWhere } from "@/lib/s
 export const metadata = { title: "发现兴趣派" };
 
 const PAGE_SIZE = 100; // 一次取全（派数量 <100），前端只渲染前 10 个，其余由"更多"展开
-const NEWS_PAGE_SIZE = 50; // 派新鲜事服务端渲染上限：首屏 10 条 + ShowMore 展开剩余
+// 派新鲜事首屏只服务端渲染 10 条（与 FactionNews 的 NEWS_VISIBLE 同源），剩下的由前端
+// 「加载更多」打 /api/v1/news——以前一次铺 50 条，载荷与 HTML 都翻倍，手机端点标签像卡死
+const NEWS_FIRST_SCREEN = 10;
 
 export default async function DiscoverPage({
   searchParams,
@@ -48,6 +50,13 @@ export default async function DiscoverPage({
     ],
   };
 
+  // 派新鲜事的可见口径与 /api/v1/news 严格一致：可见派最新发布帖，排除首页公开招募帖
+  const newsWhere = {
+    status: "PUBLISHED" as const,
+    recruit: false,
+    faction: { status: "ACTIVE" as const, ...factionScopeWhere(audience) },
+  };
+
   // 首屏由服务端直读数据库，后续筛选全部走 /api/v1/factions
   const [
     factionCandidates,
@@ -56,6 +65,7 @@ export default async function DiscoverPage({
     activity,
     myMemberships,
     leaderFactions,
+    newsTotal,
     newsPosts,
     leaderWallOn,
     hiddenWallIds,
@@ -90,16 +100,13 @@ export default async function DiscoverPage({
       where: { status: "ACTIVE", leaderId: { not: null }, ...factionScopeWhere(audience) },
       include: { leader: { select: PUBLIC_USER } },
     }),
-    // 派新鲜事：所有可见派最新发布帖子，排除首页公开招募帖，上限50条（首屏10条 + ShowMore 展开剩余）
+    // 派新鲜事：总数用于判断首屏之后还有没有得加载，列表只取首屏 10 条
+    prisma.post.count({ where: newsWhere }),
     prisma.post.findMany({
-      where: {
-        status: "PUBLISHED",
-        recruit: false,
-        faction: { status: "ACTIVE", ...factionScopeWhere(audience) },
-      },
+      where: newsWhere,
       include: { author: { select: IDENTIFIED_USER }, faction: { include: { company: true } } },
       orderBy: { createdAt: "desc" },
-      take: NEWS_PAGE_SIZE,
+      take: NEWS_FIRST_SCREEN,
     }),
     getSiteFlag(SITE_FLAGS.LEADER_WALL),
     getHiddenLeaderWallFactionIds(),
@@ -135,6 +142,7 @@ export default async function DiscoverPage({
       {viewer ? (
         <FactionNews
           posts={newsRows}
+          total={newsTotal}
           emptyAction={{ label: "去发现兴趣派", href: "#faction-browser" }}
         />
       ) : null}

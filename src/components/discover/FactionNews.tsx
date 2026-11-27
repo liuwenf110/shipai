@@ -1,45 +1,40 @@
-import { PostCard } from "@/components/PostCard";
+import { FeedStream } from "@/components/home/FeedStream";
 import { SectionHeader, EmptyState } from "@/components/Section";
-import { ShowMore } from "@/components/ShowMore";
 import type { PostJson } from "@/lib/revive";
 
-const NEWS_VISIBLE = 10; // 首屏展示条数，其余折叠在「更多」里
+const NEWS_VISIBLE = 10; // 首屏服务端渲染条数，再多的一条条靠 /api/v1/news 按需拉
 
 /**
  * 发现页「派新鲜事」：展示所有可见派的最新发布帖子。
- * 首屏服务端渲染前 10 条，超出部分由 ShowMore 静态展开（内容已在服务端渲染，无需再发 API）。
+ * 只服务端渲染前 10 条，其余交给 FeedStream 的「加载更多」打 /api/v1/news。
+ * 旧做法是把 50 条全渲染进 ShowMore 的 hidden 容器里：多出的 40 张卡片的元素树整份
+ * 写进 flight 载荷（实测发现页 flight 191KB / HTML 441KB），手机上解析+水合期间
+ * 点底部标签像没反应。
  */
 export function FactionNews({
   posts,
+  total,
   emptyAction,
 }: {
   posts: PostJson[];
-  /** 一条帖子都没有时的引导 */
+  /** 可见范围内新鲜事总条数，用来判断首屏之后还有没有得加载 */
+  total: number;
   emptyAction: { label: string; href: string };
 }) {
-  const visible = posts.slice(0, NEWS_VISIBLE);
-  const extra = posts.slice(NEWS_VISIBLE);
+  const first = posts.slice(0, NEWS_VISIBLE);
 
   return (
     <section className="mx-auto max-w-5xl px-4 pt-5">
       <SectionHeader title="派新鲜事" desc="各派里正在聊的最新话题" />
-      {visible.length ? (
-        <>
-          <div className="space-y-3">
-            {visible.map((post) => (
-              <PostCard key={post.id} post={post} liked={Boolean(post.liked)} redirectTo="/discover" compact />
-            ))}
-          </div>
-          {extra.length ? (
-            <ShowMore count={extra.length}>
-              <div className="mt-3 space-y-3">
-                {extra.map((post) => (
-                  <PostCard key={post.id} post={post} liked={Boolean(post.liked)} redirectTo="/discover" compact />
-                ))}
-              </div>
-            </ShowMore>
-          ) : null}
-        </>
+      {first.length ? (
+        <FeedStream
+          initialPosts={first}
+          initialHasMore={total > first.length}
+          endpoint="/api/v1/news"
+          pageSize={NEWS_VISIBLE}
+          redirectTo="/discover"
+          compact
+        />
       ) : (
         <div className="card">
           <EmptyState
