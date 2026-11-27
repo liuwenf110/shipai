@@ -1,4 +1,4 @@
-import { withBasePath } from "@/lib/base-path";
+import { THUMB_AVATAR, thumbSrc } from "@/lib/thumb";
 import { cn, initials } from "@/lib/utils";
 
 const SIZES = {
@@ -35,7 +35,17 @@ export function Avatar({
       )}
       style={src ? undefined : { background: `linear-gradient(135deg, ${color}, ${color}CC)` }}
     >
-      {src ? <img src={withBasePath(src)} alt={name} className="h-full w-full object-cover" /> : initials(name)}
+      {/* 头像最大渲染 80px，统一走 160w 缩略：过去直接上原图，线上实测单张头像原图最大 816KB */}
+      {src ? (
+        <img
+          src={thumbSrc(src, THUMB_AVATAR)}
+          alt={name}
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        initials(name)
+      )}
     </span>
   );
 }

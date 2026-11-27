@@ -6,7 +6,7 @@ import { Icon } from "@/components/Icon";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FactionShareButton } from "@/components/faction/FactionShareButton";
 import { signupActivityAction } from "@/lib/actions/faction";
-import { withBasePath } from "@/lib/base-path";
+import { THUMB_AVATAR, THUMB_CARD, thumbSrc } from "@/lib/thumb";
 import { richTextToPlainText } from "@/lib/rich-text";
 import type { UserIdentity } from "@/lib/identity";
 import { capacityLabel, cn, formatActivityTime, splitList } from "@/lib/utils";
@@ -71,7 +71,9 @@ export function ActivityFeedCard({
   const canManage = isManager || Boolean(currentUserId && activity.creatorId === currentUserId);
   const isCreator = Boolean(currentUserId && activity.creatorId === currentUserId);
   const detailHref = `/factions/${slug}/activities/${activity.id}`;
-  const cover = withBasePath(splitList(activity.images)[0] ?? "");
+  // 列表图走缩略地址（库里存的是 /uploads/xxx，thumbSrc 已负责补部署前缀）：
+  // 精简卡 56px 锚点取 160w，列表满宽图取 750w，避免把手机拍的几 MB 原图直接塑进小图框
+  const cover = thumbSrc(splitList(activity.images)[0], compact ? THUMB_AVATAR : THUMB_CARD);
 
   return (
     <div
@@ -171,11 +173,13 @@ export function ActivityFeedCard({
             </p>
           ) : null}
           {!compact && cover ? (
-            // 列表缩略图：取首图，点击进入详情看大图；渲染前补部署前缀，否则生产子路径下破图
+            // 列表缩略图：取首图，点击进入详情看大图
             <Link href={detailHref} className="mt-2 block overflow-hidden rounded-xl">
               <img
                 src={cover}
                 alt={activity.title}
+                loading="lazy"
+                decoding="async"
                 className="h-36 w-full object-cover"
               />
             </Link>
@@ -187,6 +191,8 @@ export function ActivityFeedCard({
             <img
               src={cover}
               alt={activity.title}
+              loading="lazy"
+              decoding="async"
               className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-ink-line/70"
             />
           ) : factionTag ? (

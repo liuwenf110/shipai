@@ -78,6 +78,8 @@ export function LinkCard({
           <img
             src={image}
             alt=""
+            loading="lazy"
+            decoding="async"
             className="h-[58px] w-[58px] shrink-0 rounded-lg bg-cream-sunk object-cover"
           />
         ) : (

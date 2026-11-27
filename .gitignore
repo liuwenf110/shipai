@@ -4,6 +4,7 @@ node_modules
 out
 build
 .runtime
+.thumb-cache
 tsconfig.tsbuildinfo
 next-env.d.ts
 

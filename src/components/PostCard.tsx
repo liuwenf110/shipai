@@ -6,7 +6,7 @@ import { Icon } from "@/components/Icon";
 import { LikeButton } from "@/components/post/LikeButton";
 import { LinkCard } from "@/components/post/LinkCard";
 import { categoryOf } from "@/lib/constants";
-import { withBasePath } from "@/lib/base-path";
+import { THUMB_CARD, THUMB_CARD_COMPACT, thumbSrc } from "@/lib/thumb";
 import type { IdentifiedAuthor } from "@/lib/revive";
 import { extractRichImagePaths, looksRichText, richTextToPlainText } from "@/lib/rich-text";
 import { splitList, timeAgo } from "@/lib/utils";
@@ -34,12 +34,11 @@ export function PostCard({
   compact?: boolean;
 }) {
   const meta = categoryOf(post.faction.category);
-  // 库里存的是 /uploads/xxx 相对路径；生产挂在 /shipai 子路径下，渲染前必须补前缀，否则 nginx 不转发到应用导致破图
-  const images = splitList(post.images).map(withBasePath);
   // 富文本帖摘要剥标签；无配图字段时用正文首张内联图作封面
   const summary = looksRichText(post.content) ? richTextToPlainText(post.content) : post.content;
-  const richCover = looksRichText(post.content) ? extractRichImagePaths(post.content)[0] : undefined;
-  const cover = images[0] ?? (richCover ? withBasePath(richCover) : null);
+  // 列表封面走缩略图：库里存的是 /uploads/xxx 相对路径，thumbSrc 已负责补部署前缀
+  const rawCover = splitList(post.images)[0] ?? (looksRichText(post.content) ? extractRichImagePaths(post.content)[0] : undefined);
+  const cover = thumbSrc(rawCover, compact ? THUMB_CARD_COMPACT : THUMB_CARD);
 
   return (
     <article className="card p-4">
@@ -99,6 +98,8 @@ export function PostCard({
             <img
               src={cover}
               alt="帖子图片"
+              loading="lazy"
+              decoding="async"
               className={`w-full object-cover ${compact ? "max-h-28 sm:max-h-36" : "max-h-64"}`}
               style={{ background: `linear-gradient(135deg, ${meta.from}, ${meta.to})` }}
             />
