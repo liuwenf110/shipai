@@ -5,6 +5,9 @@ out
 build
 .runtime
 .thumb-cache
+# 小程序码出图缓存与 scene 短码表：都是跨发布不可变的运行期产物（码印进海报后不能换）
+.wxacode-cache
+.share-codes.json
 tsconfig.tsbuildinfo
 next-env.d.ts
 

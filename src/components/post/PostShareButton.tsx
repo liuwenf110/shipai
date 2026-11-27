@@ -3,7 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { stripBasePath, withBasePath } from "@/lib/base-path";
+import { shareCoverSrc } from "@/lib/thumb";
 import { confirmMiniProgramEnv, inMiniProgramWebView, mpNavigateToPage } from "@/lib/wx-jssdk";
+
+/**
+ * 分享卡片封面：站内上传图统一换成 5:4 居中裁切的缩略地址。
+ * 微信对卡片图的比例约定是 5:4，直接把帖子首图原样交给壳，竖图会被压成两边留白、
+ * 横长图会被裁掉主体；外链图（非 /uploads 开头）保持原地址不动。
+ */
+function shareImageAbs(image?: string) {
+  if (!image) return "";
+  if (image.startsWith("http")) return image;
+  // shareCoverSrc 返回的是带部署前缀的站内地址，卡片要的是绝对 https，再补一次 origin
+  return `${window.location.origin}${shareCoverSrc(image) ?? withBasePath(image)}`;
+}
 
 /** 分享链接的查询串：只保留环境标记 from=wxapp 与来源 ref=share，剥掉一次性参数 */
 function shareQuery(search: string, keepFrom = true) {
@@ -65,7 +78,7 @@ export function PostShareButton({
       url: `${origin}${target}${shareQuery(search)}`,
       // 给壳的 path 需剥部署前缀，壳会与 H5_BASE 拼接
       mpPath: `${stripBasePath(target)}${shareQuery(search, false)}`,
-      imageAbs: image ? (image.startsWith("http") ? image : `${origin}${image}`) : "",
+      imageAbs: shareImageAbs(image),
       // 少数浏览器从当前 pathname 分享时才用它，正常走 path prop
       fromCurrent: pathname,
     };

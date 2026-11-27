@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { MIME_BY_EXT, resolveUploadPath } from "@/lib/upload";
-import { clampThumbWidth } from "@/lib/thumb";
+import { THUMB_SHARE_H, THUMB_SHARE_W, clampThumbWidth } from "@/lib/thumb";
 
 /**
  * GET /api/v1/thumb/<文件名>?w=480  站内上传图的按需缩略。
@@ -26,8 +26,9 @@ const RESIZABLE = new Set([".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".
 // 同一 key 的并发请求合并成一次缩略，避免首屏十几张图同时打开时重复算
 const pending = new Map<string, Promise<Buffer | null>>();
 
-async function renderThumb(source: string, name: string, width: number): Promise<Buffer | null> {
-  const key = `${name}@${width}`;
+async function renderThumb(source: string, name: string, width: number, cover: boolean): Promise<Buffer | null> {
+  // 5:4 卡片封面单独一个 key 后缀：它不是等宽缩放，与 ?w= 产物的长短边关系不同
+  const key = cover ? `${name}@share54` : `${name}@${width}`;
   const cachedFile = path.join(CACHE_DIR, key);
   const hit = await readFile(cachedFile).catch(() => null);
   if (hit?.length) return hit;
@@ -36,11 +37,12 @@ async function renderThumb(source: string, name: string, width: number): Promise
 
   const task = (async () => {
     // rotate() 让 sharp 按 EXIF 摆正方向：手机直出的照片不转的话缩略后是躺着的
-    const buffer = await sharp(source, { failOn: "error", limitInputPixels: 268402689 })
-      .rotate()
-      .resize({ width, withoutEnlargement: true })
-      .webp({ quality: QUALITY })
-      .toBuffer();
+    const pipeline = sharp(source, { failOn: "error", limitInputPixels: 268402689 }).rotate();
+    // 5:4 卡片封面走居中裁切（fit:cover 会把小图放大填满），其余按档位等宽缩略（不放大）
+    const sized = cover
+      ? pipeline.resize({ width: THUMB_SHARE_W, height: THUMB_SHARE_H, fit: "cover", position: "centre" })
+      : pipeline.resize({ width, withoutEnlargement: true });
+    const buffer = await sized.webp({ quality: QUALITY }).toBuffer();
     await mkdir(CACHE_DIR, { recursive: true });
     // 写失败（磁盘满/只读）只影响下次复用速度，不能拖垮本次响应
     await writeFile(cachedFile, buffer).catch(() => null);
@@ -65,8 +67,10 @@ export async function GET(
   if (!target) return new Response("Not found", { status: 404 });
 
   const width = clampThumbWidth(new URL(request.url).searchParams.get("w"));
+  // ?cover=54：分享卡片封面固定 5:4 居中裁切（微信对卡片图的比例约定，原图比例随机会被裁得面目全非）
+  const cover = new URL(request.url).searchParams.get("cover") === "54";
   const ext = path.extname(target).toLowerCase();
-  const buffer = RESIZABLE.has(ext) ? await renderThumb(target, name, width) : null;
+  const buffer = RESIZABLE.has(ext) ? await renderThumb(target, name, width, cover) : null;
 
   const headers = new Headers({
     // 地址带宽度参数但同一地址内容恒定，可以放心 immutable 长缓存

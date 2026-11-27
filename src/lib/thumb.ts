@@ -19,6 +19,9 @@ export const THUMB_AVATAR = 160;
 export const THUMB_CARD_COMPACT = 480;
 /** 完整卡封面：内容区最大 768px 宽 */
 export const THUMB_CARD = 750;
+/** 分享卡片封面：微信要求 5:4，取 1080x864（2x DPR 下 540x432 足够清晰） */
+export const THUMB_SHARE_W = 1080;
+export const THUMB_SHARE_H = 864;
 
 /** 把任意请求宽度收敛到档位，非法值退回完整卡宽度（入参直接来自 query，允许字符串） */
 export function clampThumbWidth(width: string | number | null | undefined): number {
@@ -42,4 +45,14 @@ export function thumbSrc(src: string | null | undefined, width: number): string 
   const name = decodeURIComponent(rel.slice("/uploads/".length));
   if (!SAFE_NAME.test(name)) return withBasePath(src);
   return `${BASE_PATH}/api/v1/thumb/${encodeURIComponent(name)}?w=${clampThumbWidth(width)}`;
+}
+
+/** 站内上传图 → 5:4 分享卡片封面（居中裁切）；非站内图原样返回 */
+export function shareCoverSrc(src: string | null | undefined): string | undefined {
+  if (!src) return undefined;
+  const rel = BASE_PATH && src.startsWith(BASE_PATH) ? src.slice(BASE_PATH.length) : src;
+  if (!rel.startsWith("/uploads/")) return withBasePath(src);
+  const name = decodeURIComponent(rel.slice("/uploads/".length));
+  if (!SAFE_NAME.test(name)) return withBasePath(src);
+  return `${BASE_PATH}/api/v1/thumb/${encodeURIComponent(name)}?cover=54`;
 }
