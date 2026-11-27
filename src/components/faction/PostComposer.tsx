@@ -29,34 +29,68 @@ export function PostComposer({
   // 配图支持多张：最多 9 张，与后端上限对齐
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const [pickError, setPickError] = useState("");
   const MAX_IMAGES = 9;
+  // 单张上限对齐 saveProofFile；总量留够 multipart 边界，避免撞 Server Action 的 8MB 请求体上限
+  const MAX_ONE = 6 * 1024 * 1024;
+  const MAX_TOTAL = 7 * 1024 * 1024;
+
+  // 提交进 FormData 的是 input.files，state 只用来画缩略图：
+  // 之前选完图就 input.value=""，等于每次都把待提交的文件清空，多图配图静默丢失（提交时 0 个文件）。
+  // 现在每次改动已选列表都原样写回 input.files。
+  function syncImageInput(files: File[]) {
+    const input = imageInputRef.current;
+    if (!input) return;
+    if (files.length === 0) {
+      input.value = "";
+      return;
+    }
+    const store = new DataTransfer();
+    for (const f of files) store.items.add(f);
+    input.files = store.files;
+  }
 
   function onImagePick(event: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(event.target.files ?? []);
     const merged = [...imageFiles];
+    let reason = "";
     for (const f of picked) {
-      if (merged.length >= MAX_IMAGES) break;
-      if (!merged.some((x) => x.name === f.name && x.size === f.size && x.lastModified === f.lastModified)) {
-        merged.push(f);
+      if (merged.length >= MAX_IMAGES) {
+        reason = `最多 ${MAX_IMAGES} 张配图，多出来的已忽略`;
+        break;
       }
+      if (f.size > MAX_ONE) {
+        reason = `「${f.name}」超过 6MB，已忽略`;
+        continue;
+      }
+      if (merged.some((x) => x.name === f.name && x.size === f.size && x.lastModified === f.lastModified)) {
+        continue;
+      }
+      if (merged.reduce((sum, x) => sum + x.size, 0) + f.size > MAX_TOTAL) {
+        reason = "配图总量接近 7MB，请删掉几张或换压缩后的图";
+        continue;
+      }
+      merged.push(f);
     }
     setImageFiles(merged);
-    // 重接 input 为剩余未选文件，避免同一个文件无法重复添加；回退时保留当前已选列表
-    if (imageInputRef.current) imageInputRef.current.value = "";
+    setPickError(reason);
+    syncImageInput(merged);
   }
 
   function removeImage(index: number) {
-    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    const next = imageFiles.filter((_, i) => i !== index);
+    setImageFiles(next);
+    syncImageInput(next);
+  }
+
+  function clearImages() {
+    setImageFiles([]);
+    setPickError("");
+    syncImageInput([]);
   }
 
   return (
-    <form
-      action={formAction}
-      className="card p-3.5"
-      onSubmit={() => {
-        setImageFiles([]);
-      }}
-    >
+    <form action={formAction} className="card p-3.5">
       <input type="hidden" name="factionId" value={factionId} />
       <div className="flex items-start gap-2.5">
         <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-[11px] font-black text-white">
@@ -105,7 +139,7 @@ export function PostComposer({
               {imageFiles.length > 0 ? (
                 <button
                   type="button"
-                  onClick={() => setImageFiles([])}
+                  onClick={clearImages}
                   className="rounded-full px-2 py-1 text-[11px] font-semibold text-ink-mute hover:text-[#B42318]"
                 >
                   清空配图
@@ -145,6 +179,7 @@ export function PostComposer({
             </div>
           ) : null}
 
+          {pickError ? <Notice message={pickError} tone="info" /> : null}
           {state.error ? <Notice message={state.error} tone="error" /> : null}
 
           <div className="flex items-center justify-between">

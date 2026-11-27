@@ -41,7 +41,10 @@ export function BottomNav({
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-ink-line/80 bg-white/92 backdrop-blur-xl md:hidden">
+    // 微信 web-view（iOS WKWebView）里，fixed + backdrop-filter 的悬浮层常常第一下点击被吞：
+    // 那一下只够触发快照重算，命不中下面的链接，要点第二下才跳转。
+    // 底部导航是主入口，这里改成不透明底 + 独立合成层（translateZ），不再用毛玻璃。
+    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-ink-line/80 bg-white [transform:translateZ(0)] md:hidden">
       <div className="relative mx-auto flex max-w-md items-end justify-around px-2 pt-1.5">
         {leading.map((item) => (
           <NavItem
@@ -54,10 +57,10 @@ export function BottomNav({
 
         <Link
           href="/publish"
-          className="relative -mt-6 flex flex-col items-center gap-1"
+          className="relative -mt-6 flex flex-col items-center gap-1 touch-manipulation [-webkit-tap-highlight-color:transparent]"
           aria-label="发布"
         >
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand text-white shadow-[0_10px_24px_-8px_rgba(255,90,31,0.9)] transition active:scale-95">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand text-white shadow-[0_10px_24px_-8px_rgba(255,90,31,0.9)]">
             <Icon name="plus" size={22} strokeWidth={2.2} />
           </span>
           <span className="text-[10px] font-semibold text-ink-mute">发布</span>
@@ -94,7 +97,9 @@ function NavItem({
       href={item.href}
       onClick={onClick}
       className={cn(
-        "relative flex w-16 select-none flex-col items-center gap-0.5 rounded-xl py-2 transition active:scale-95",
+        // touch-manipulation 去掉 iOS 双击缩放等待（首下点击要等 300ms 才落地），
+        // 也不再在 :active 时缩放：几何一边框一边被命中测试，正是“点不中”的成因
+        "relative flex w-16 touch-manipulation select-none flex-col items-center gap-0.5 rounded-xl py-2 [-webkit-tap-highlight-color:transparent]",
         active ? "text-ink" : "text-ink-mute",
       )}
     >

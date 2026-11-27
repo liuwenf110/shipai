@@ -15,7 +15,9 @@ export function TopBar({
   const primary = viewer?.verifiedEmployments[0];
 
   return (
-    <header className="sticky top-0 z-30 border-b border-ink-line/70 bg-cream/85 backdrop-blur-xl">
+    // 不刷毛玻璃：sticky/fixed 上的 backdrop-filter 会让 iOS WKWebView 每帧重算快照，
+    // 代价不只是卡顿，还会吞掉首下点击的命中测试（底部导航“点第一下没反应”的根源）
+    <header className="sticky top-0 z-30 border-b border-ink-line/70 bg-cream">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4">
         <div className="flex items-center gap-7">
           {miniProgram ? null : <Logo />}
