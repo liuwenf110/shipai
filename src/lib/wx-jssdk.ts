@@ -108,11 +108,17 @@ export async function confirmMiniProgramEnv(): Promise<boolean> {
   });
 }
 
-/** navigateTo 的 fail 参数形态不一（string / {errMsg}），统一抽成短文本供提示与排查 */
+/** navigateTo 的 fail / bridge 回调形态不一（string / {errMsg} / {err_msg}），统一抽成短文本供提示与排查；无法识别时回传原始 JSON 以免被“未知错误”吞掉真信息 */
 function errText(error: unknown) {
   if (typeof error === "string") return error;
-  const msg = (error as { errMsg?: string } | null)?.errMsg;
-  return msg || "未知错误";
+  const e = error as { errMsg?: string; err_msg?: string } | null;
+  if (e?.errMsg) return e.errMsg;
+  if (e?.err_msg) return e.err_msg;
+  try {
+    return error ? JSON.stringify(error) : "未知错误";
+  } catch {
+    return "未知错误";
+  }
 }
 
 export type MpNavResult = { ok: boolean; errMsg: string; via: "jweixin" | "bridge" | "none" };
