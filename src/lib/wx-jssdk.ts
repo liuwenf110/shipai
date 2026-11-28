@@ -28,7 +28,7 @@ declare global {
   }
 }
 
-const JWEIXIN_SRC = "https://res.wx.qq.com/open/js/jweixin-1.6.0.js";
+const JWEIXIN_SRC = "https://res.wx.qq.com/open/js/jweixin-1.6.7.js";
 
 /** 与 FactionShareButton/PostShareButton/MpShareBeacon 同口径的小程序 web-view 判定 */
 export function inMiniProgramWebView() {
@@ -60,7 +60,7 @@ export function ensureJweixin(): Promise<boolean> {
   if (window.__jweixinLoading) return window.__jweixinLoading;
 
   window.__jweixinLoading = new Promise<boolean>((resolve) => {
-    const existing = document.querySelector<HTMLScriptElement>('script[src*="jweixin-1.6.0"]');
+    const existing = document.querySelector<HTMLScriptElement>('script[src*="jweixin-"]');
     if (existing) {
       // 已有标签但还没触发 load（可能刚注入），监听一次
       existing.addEventListener("load", () => resolve(mpBridgeReady()));

@@ -102,17 +102,12 @@ export function PostShareButton({
   }
 
   /**
-   * 原生中转页的跳转地址。手工 encodeURIComponent 而不用 URLSearchParams：
-   * 后者会把空格编成 `+`，中转页 decodeURIComponent 后标题里就留下一个加号。
+   * 原生中转页的跳转地址：只带最短的 path + kind。
+   * iOS web-view 里 navigateTo 对超长 query（尤其带一长串编码后的封面图链接）会静默丢弃，
+   * 富内容（标题/封面）改由 onShare 里紧接的 postMessage 补给中转页（中转页读 lastShare）。
    */
-  function mpShareTarget(mpPath: string, imageAbs: string) {
-    const parts = [
-      `title=${encodeURIComponent(title)}`,
-      `path=${encodeURIComponent(mpPath)}`,
-    ];
-    if (imageAbs) parts.push(`image=${encodeURIComponent(imageAbs)}`);
-    parts.push(`kind=${kind}`);
-    return `/pages/share/index?${parts.join("&")}`;
+  function mpShareTarget(mpPath: string) {
+    return `/pages/share/index?path=${encodeURIComponent(mpPath)}&kind=${kind}`;
   }
 
   async function onShare() {
@@ -129,7 +124,7 @@ export function PostShareButton({
       const isMp = mpBridgeReady() || (await confirmMiniProgramEnv());
       if (isMp) {
         const payload = { type: "share", title, path: mpPath, image: imageAbs };
-        const nav = await mpNavigateToPage(mpShareTarget(mpPath, imageAbs));
+        const nav = await mpNavigateToPage(mpShareTarget(mpPath));
         if (nav.ok) return;
         // 跳转没成（iOS web-view 常把 navigateTo 静默吞掉）：先 postMessage 把当前这条内容的分享意图交给灯塔，
         // 再引导用户走右上角——微信里唯一能 100% 拉起原生转发面板的入口，且内容已由灯塔备好在当前这条。

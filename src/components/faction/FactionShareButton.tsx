@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { stripBasePath, withBasePath } from "@/lib/base-path";
-import { inMiniProgramWebView } from "@/lib/wx-jssdk";
+import { ensureJweixin, inMiniProgramWebView, mpBridgeReady } from "@/lib/wx-jssdk";
 
 /**
  * 构造分享用的查询串：只携带 ref=share 与环境标记 from=wxapp，
@@ -67,20 +67,23 @@ export function FactionShareButton({
     }
   }, [open, path, image, slogan]);
 
-  // 小程序内展开面板：注入 jweixin 并把分享信息 postMessage 给壳（右上角转发时壳会收到）
+  // 小程序内展开面板：把分享信息 postMessage 给壳（右上角转发时壳会收到）。
+  // jweixin 统一走 wx-jssdk 共享加载器，避免多处硬编码不同版本导致 navigateTo 在 iOS 被吞。
   useEffect(() => {
     if (!open || !mp || !shareTarget) return;
     const payload = { type: "share", ...shareTarget };
     const post = () => window.wx?.miniProgram?.postMessage({ data: payload });
-    if (window.wx?.miniProgram) {
+    if (mpBridgeReady()) {
       post();
       return;
     }
-    const script = document.createElement("script");
-    script.src = "https://res.wx.qq.com/open/js/jweixin-1.6.0.js";
-    script.onload = post;
-    document.head.appendChild(script);
-    // 不主动移除：登录页微信按钮等组件也在复用同一份 jweixin
+    let cancelled = false;
+    void ensureJweixin().then((ok) => {
+      if (!cancelled && ok) post();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [open, mp, shareTarget]);
 
   // 点击面板外区域收起

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ensureJweixin, mpBridgeReady } from "@/lib/wx-jssdk";
 
 /**
  * 小程序 web-view 内的「微信登录」按钮：
@@ -11,23 +12,24 @@ export function WxLoginButton({ text = "微信登录" }: { text?: string }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // web-view 页默认不带 jweixin，按需注入；wx.miniProgram API 无需签名配置
+    // jweixin 统一走 wx-jssdk 共享加载器（幂等、预加载就绪则同步用），避免多处硬编码不同版本。
     if (typeof window === "undefined") return;
-    if ((window as { wx?: { miniProgram?: unknown } }).wx?.miniProgram) {
+    if (mpBridgeReady()) {
       setReady(true);
       return;
     }
-    const script = document.createElement("script");
-    script.src = "https://res.wx.qq.com/open/js/jweixin-1.6.0.js";
-    script.onload = () => setReady(true);
-    document.head.appendChild(script);
-    return () => script.remove();
+    let cancelled = false;
+    void ensureJweixin().then((ok) => {
+      if (!cancelled && ok) setReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function goWxAuth() {
-    const wx = (window as { wx?: { miniProgram?: { navigateTo(opts: { url: string }): void } } }).wx;
-    if (wx?.miniProgram) {
-      wx.miniProgram.navigateTo({ url: "/pages/auth/index" });
+    if (window.wx?.miniProgram) {
+      window.wx.miniProgram.navigateTo({ url: "/pages/auth/index" });
     }
   }
 
