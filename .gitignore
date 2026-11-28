@@ -46,3 +46,9 @@ miniprogram/project.private.config.json
 上十派小程序码.jpg
 上十派分派海报.zip
 preview_qr_*.png
+
+# 招募海报生成产物（约30MB二进制，不入库）
+海报-派主喊话/
+海报-派主宣传/
+海报-派主墙回归.png
+.wxpreview.info
