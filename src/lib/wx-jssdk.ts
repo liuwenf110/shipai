@@ -138,6 +138,7 @@ export function mpNavigateToPage(url: string): Promise<MpNavResult> {
   // bridge 还没就绪（预加载没赶上）：只能先加载再跳，此时用户手势已不可保，尽力而为
   return ensureJweixin().then((ready) => {
     if (ready && window.wx?.miniProgram?.navigateTo) return navigateThenVerify(url);
+    // jweixin 没能挂上 window.wx（真机实测）：直接走原生 WeixinJSBridge，并等其就绪再 invoke
     return bridgeInvokeNav(url, { ok: false, errMsg: "", via: "none" });
   });
 }
@@ -173,15 +174,67 @@ function navigateThenVerify(url: string): Promise<MpNavResult> {
   });
 }
 
-/** 兜底通道：绕过 jweixin 直接喊微信原生 JSBridge（jweixin 内部走的也是这条），以可见性自校验 */
+/**
+ * 兜底通道：绕过 jweixin 直接喊微信原生 WeixinJSBridge。
+ * 真机实测（snap）：web-view 里 window.wx 可能始终 undefined（jweixin 没挂上），
+ * 但 window.WeixinJSBridge 对象是存在的，只是刚进页时 .invoke 尚未就绪——
+ * 必须等 `WeixinJSBridgeReady` 事件（或轮询 .invoke 出现）再 invoke，否则直接返回会误判“不可用”。
+ * invoke 的回调形态不一，统一把 errMsg 回传，并以“页面是否被隐藏”为唯一可信的跳成信号。
+ */
 function bridgeInvokeNav(url: string, result: MpNavResult): Promise<MpNavResult> {
-  if (!window.WeixinJSBridge?.invoke) return Promise.resolve(result);
-  window.WeixinJSBridge.invoke(
-    "invokeMiniProgramAPI",
-    { name: "navigateTo", arg: JSON.stringify({ url }) },
-    () => {},
-  );
-  return delay(800).then(() =>
-    stillVisible() ? result : { ok: true, errMsg: result.errMsg, via: "bridge" },
-  );
+  return new Promise<MpNavResult>((resolve) => {
+    let cbErr = "";
+    let settled = false;
+    const verify = () => {
+      // 真跳走时 web-view 页会被隐藏；仍可见则用回调 errMsg 定性失败原因
+      delay(1000).then(() => {
+        if (settled) return;
+        settled = true;
+        resolve(!stillVisible() ? { ok: true, errMsg: "", via: "bridge" } : { ok: false, errMsg: cbErr || "invoke后页面仍可见", via: "bridge" });
+      });
+    };
+    const doInvoke = () => {
+      if (settled) return;
+      if (!window.WeixinJSBridge?.invoke) {
+        settled = true;
+        resolve({ ...result, errMsg: cbErr || "WeixinJSBridge.invoke未就绪" });
+        return;
+      }
+      try {
+        window.WeixinJSBridge.invoke(
+          "invokeMiniProgramAPI",
+          { name: "navigateTo", arg: JSON.stringify({ url }) },
+          (res: unknown) => {
+            cbErr = errText(res);
+          },
+        );
+      } catch (error) {
+        cbErr = "invoke异常:" + errText(error);
+      }
+      verify();
+    };
+    if (window.WeixinJSBridge?.invoke) {
+      doInvoke();
+      return;
+    }
+    // 就绪前：监听 WeixinJSBridgeReady；并轮询 .invoke 出现兼底（事件在部分内核不重复触发），最多等 4s
+    document.addEventListener("WeixinJSBridgeReady", doInvoke, false);
+    const started = Date.now();
+    const poll = window.setInterval(() => {
+      if (settled) {
+        window.clearInterval(poll);
+        return;
+      }
+      if (window.WeixinJSBridge?.invoke) {
+        window.clearInterval(poll);
+        doInvoke();
+      } else if (Date.now() - started > 4000) {
+        window.clearInterval(poll);
+        if (!settled) {
+          settled = true;
+          resolve({ ...result, errMsg: "等WeixinJSBridge就绪超时" });
+        }
+      }
+    }, 150);
+  });
 }
