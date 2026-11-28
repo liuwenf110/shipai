@@ -33,6 +33,11 @@ Page({
       if (m && m.type === "share" && m.path) this.lastShare = m;
     }
   },
+  // 悬浮原生转发按钮的普通点击回调：open-type="share" 本身已拉起转发面板，这里仅记录一次
+  // 可点证据（_fabTapped）供排查——真机上若按钮被 web-view 盖住，这个回调根本不会触发。
+  onFabTap() {
+    this._fabTapped = true;
+  },
   // 右上角「···→ 推荐给朋友」：优先用 H5 最近一次分享意图，生成直达该活动/该派的卡片
   // （对方点开卡片经 path 透传 + from=wxapp 落地到具体页面，而不是整个小程序首页）
   onShareAppMessage() {

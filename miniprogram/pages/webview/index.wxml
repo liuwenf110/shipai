@@ -1,3 +1,7 @@
 <!-- 上十派 H5 容器页：整屏 web-view，业务交互全部在 H5 内完成 -->
 <!-- bindmessage 接收 H5 wx.miniProgram.postMessage 的分享意图，供右上角转发兜底 -->
+<!-- 悬浮原生转发按钮：open-type="share" 直接触发本页 onShareAppMessage（转发灯塔缓存的 lastShare）。
+     设计意图是绕开 iOS web-view 里被静默吞掉的 wx.miniProgram.navigateTo，给页内分享一个常驻可点的原生入口。
+     注意：web-view 为整屏原生层，可能覆盖此按钮，真机验证若点不到需改回 navigateTo/右上角引导。 -->
 <web-view src="{{url}}" bindmessage="onH5Message"></web-view>
+<button class="mp-share-fab" open-type="share" bindtap="onFabTap">分享</button>
