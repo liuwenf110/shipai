@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { stripBasePath, withBasePath } from "@/lib/base-path";
 import { shareCoverSrc } from "@/lib/thumb";
-import { confirmMiniProgramEnv, inMiniProgramWebView, mpNavigateToPage } from "@/lib/wx-jssdk";
+import { confirmMiniProgramEnv, inMiniProgramWebView, mpBridgeReady, mpNavigateToPage } from "@/lib/wx-jssdk";
 
 /**
  * 分享卡片封面：站内上传图统一换成 5:4 居中裁切的缩略地址。
@@ -120,21 +120,27 @@ export function PostShareButton({
 
     // 小程序 web-view：H5 自身调不起微信转发面板，最直达的做法是 navigateTo 到壳的原生中转页，
     // 那一页有一个 open-type="share" 大按钮，点一下就拉起原生分享面板。
-    // 注意 from=wxapp 只是壳拼的参数，转发出去的链接被同事在微信内置浏览器里打开时同样带着它，
-    // 那种环境没有 bridge，navigateTo 会「只弹提示然后没动静」，所以先用官方 getEnv 坐实环境。
-    if (inMiniProgramWebView() && (await confirmMiniProgramEnv())) {
-      const payload = { type: "share", title, path: mpPath, image: imageAbs };
-      const nav = await mpNavigateToPage(mpShareTarget(mpPath, imageAbs));
-      if (nav.ok) return;
-      // 两条通道都没跳走：把分享意图 postMessage 给灯塔，保证右上角转发也落到当前这条内容，
-      // 并把失败原因回显出来，方便真机一眼定位（页面没跳走时提示一定看得见）。
-      window.wx?.miniProgram?.postMessage({ data: payload });
-      showToast(
-        nav.errMsg
-          ? `分享跳转失败：${nav.errMsg}｜可点右上角「···」→ 发送给朋友`
-          : "点右上角「···」→ 发送给朋友",
-      );
-      return;
+    // bridge 已就绪时（MpShareBeacon 进站即预加载），必须让 navigateTo 落在点击的同步栈里，
+    // 所以这里不能先 await 环境确认；只有 bridge 没就绪时，才分不清「预加载没赶上的真小程序」
+    // 还是「带 from=wxapp 的微信内置浏览器假阳性」（那种环境没有 bridge，navigateTo 会静默无反应），
+    // 此时才用官方 getEnv 坐实环境再尽力跳。
+    if (inMiniProgramWebView()) {
+      // mpBridgeReady() 为真时短路，不会 await，保证后续 navigateTo 仍在同步栈
+      const isMp = mpBridgeReady() || (await confirmMiniProgramEnv());
+      if (isMp) {
+        const payload = { type: "share", title, path: mpPath, image: imageAbs };
+        const nav = await mpNavigateToPage(mpShareTarget(mpPath, imageAbs));
+        if (nav.ok) return;
+        // 两条通道都没跳走：把分享意图 postMessage 给灯塔，保证右上角转发也落到当前这条内容，
+        // 并把失败原因回显出来，方便真机一眼定位（页面没跳走时提示一定看得见）。
+        window.wx?.miniProgram?.postMessage({ data: payload });
+        showToast(
+          nav.errMsg
+            ? `分享跳转失败：${nav.errMsg}｜可点右上角「···」→ 发送给朋友`
+            : "点右上角「···」→ 发送给朋友",
+        );
+        return;
+      }
     }
 
     // 微信内置浏览器（非小程序）：navigator.share 不会拉到微信自己的面板，

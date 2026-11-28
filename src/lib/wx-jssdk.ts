@@ -118,44 +118,70 @@ function errText(error: unknown) {
 export type MpNavResult = { ok: boolean; errMsg: string; via: "jweixin" | "bridge" | "none" };
 
 /**
- * 跳转小程序原生页：jweixin 通道 + 原生 JSBridge 通道依次尝试，每条都用「页面是否还在前台」
- * 自校验，避免老版 jweixin 把调用静默吞掉时上层误判为已跳转。
+ * 跳转小程序原生页。
+ * 关键约束（真机踩过的坑）：bridge 已就绪时，navigateTo 必须在调用方「用户点击」的同步栈里
+ * 立刻发出，不能先 await 任何东西（哪怕已 resolve 的 Promise）——跨微任务会丢用户手势上下文，
+ * 部分机型 navigateTo 会被 jweixin 静默吞掉、success/fail 都不回调。
+ * 因此这里先同步发跳转，再用「success 回调 / 页面是否被隐藏」异步校验是否真跳走，
+ * 没跳通则再走原生 JSBridge 兜底。
  */
-export async function mpNavigateToPage(url: string): Promise<MpNavResult> {
-  const result: MpNavResult = { ok: false, errMsg: "", via: "none" };
-  if (typeof window === "undefined") return result;
-  const ready = await ensureJweixin();
-
-  if (ready && window.wx?.miniProgram?.navigateTo) {
-    const errMsg = await new Promise<string>((resolve) => {
-      let settled = false;
-      const finish = (msg: string) => {
-        if (settled) return;
-        settled = true;
-        resolve(msg);
-      };
-      window.wx!.miniProgram!.navigateTo({
-        url,
-        success: () => finish(""),
-        fail: (error) => finish(errText(error)),
-      });
-      // 两个回调都可能不触发：800ms 后按可见性自行定论（还看得见 = 没跳走）
-      window.setTimeout(() => finish(stillVisible() ? "navigateTo 无响应" : ""), 800);
-    });
-    if (!errMsg) return { ok: true, errMsg: "", via: "jweixin" };
-    result.errMsg = errMsg;
+export function mpNavigateToPage(url: string): Promise<MpNavResult> {
+  if (typeof window === "undefined") {
+    return Promise.resolve({ ok: false, errMsg: "", via: "none" });
   }
 
-  // 兜底通道：绕过 jweixin 直接喊微信原生 JSBridge（jweixin 内部走的也是这条）
-  if (window.WeixinJSBridge?.invoke) {
-    window.WeixinJSBridge.invoke(
-      "invokeMiniProgramAPI",
-      { name: "navigateTo", arg: JSON.stringify({ url }) },
-      () => {},
-    );
-    await delay(800);
-    if (!stillVisible()) return { ok: true, errMsg: result.errMsg, via: "bridge" };
+  // bridge 已就绪：同步发出 navigateTo，随后异步校验（保住用户手势）
+  if (mpBridgeReady() && window.wx?.miniProgram?.navigateTo) {
+    return navigateThenVerify(url);
   }
 
-  return result;
+  // bridge 还没就绪（预加载没赶上）：只能先加载再跳，此时用户手势已不可保，尽力而为
+  return ensureJweixin().then((ready) => {
+    if (ready && window.wx?.miniProgram?.navigateTo) return navigateThenVerify(url);
+    return bridgeInvokeNav(url, { ok: false, errMsg: "", via: "none" });
+  });
+}
+
+/** 同步发出 jweixin navigateTo，再用 success 回调 + 可见性双重校验是否真跳走 */
+function navigateThenVerify(url: string): Promise<MpNavResult> {
+  let successFired = false;
+  let failMsg = "";
+  // 真正的一跳：此刻仍在用户点击的同步调用栈内，不能在其前面插入任何 await
+  window.wx!.miniProgram!.navigateTo({
+    url,
+    success: () => {
+      successFired = true;
+    },
+    fail: (error) => {
+      failMsg = errText(error);
+    },
+  });
+
+  // 异步校验：success 回调触发或页面被隐藏都算跳成；都没发生则视为被吞，转 JSBridge 兜底
+  return new Promise<MpNavResult>((resolve) => {
+    window.setTimeout(() => {
+      if (successFired || !stillVisible()) {
+        resolve({ ok: true, errMsg: "", via: "jweixin" });
+        return;
+      }
+      if (failMsg) {
+        resolve({ ok: false, errMsg: failMsg, via: "jweixin" });
+        return;
+      }
+      resolve(bridgeInvokeNav(url, { ok: false, errMsg: "navigateTo 无响应", via: "jweixin" }));
+    }, 800);
+  });
+}
+
+/** 兜底通道：绕过 jweixin 直接喊微信原生 JSBridge（jweixin 内部走的也是这条），以可见性自校验 */
+function bridgeInvokeNav(url: string, result: MpNavResult): Promise<MpNavResult> {
+  if (!window.WeixinJSBridge?.invoke) return Promise.resolve(result);
+  window.WeixinJSBridge.invoke(
+    "invokeMiniProgramAPI",
+    { name: "navigateTo", arg: JSON.stringify({ url }) },
+    () => {},
+  );
+  return delay(800).then(() =>
+    stillVisible() ? result : { ok: true, errMsg: result.errMsg, via: "bridge" },
+  );
 }
