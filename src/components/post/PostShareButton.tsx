@@ -154,12 +154,9 @@ export function PostShareButton({
       });
       if (isMp) {
         const payload = { type: "share", title, path: mpPath, image: imageAbs };
-        // 临时差分诊断：先跳一个「任何版本都必然存在」的原生页 pages/webview，验证 bridge 导航本身通不通
-        const r0 = await mpNavigateToPage("/pages/webview/index?path=/");
-        diagShare("D_webview", { ok: r0.ok, via: r0.via, err: r0.errMsg || "-", kind, path: mpPath });
-        // 再跳真正的分享中转页作对照
         const nav = await mpNavigateToPage(mpShareTarget(mpPath));
-        diagShare("D_share", { ok: nav.ok, via: nav.via, err: nav.errMsg || "-", kind, path: mpPath });
+        // 临时验证：确认 1.6.0 修复后 window.wx 是否就绪、navigateTo 是否真跳成
+        diagShare("final", { wx: typeof window.wx, mp: Boolean(window.wx?.miniProgram), ok: nav.ok, via: nav.via, err: nav.errMsg || "-", kind, path: mpPath });
         if (nav.ok) return;
         window.wx?.miniProgram?.postMessage({ data: payload });
         showToast("点右上角「···」→ 发送给朋友");

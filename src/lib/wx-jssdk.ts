@@ -28,7 +28,10 @@ declare global {
   }
 }
 
-const JWEIXIN_SRC = "https://res.wx.qq.com/open/js/jweixin-1.6.7.js";
+// 真机定案（2026-11-28）：jweixin 1.6.7 这个版本微信 CDN 上根本不存在（404），
+// 指向它会导致 window.wx 永不定义、wx.miniProgram 全部不可用，被误判成“iOS 封 navigateTo”。
+// 必须钉在 CDN 真实回 200 的 1.6.0。
+const JWEIXIN_SRC = "https://res.wx.qq.com/open/js/jweixin-1.6.0.js";
 
 /** 与 FactionShareButton/PostShareButton/MpShareBeacon 同口径的小程序 web-view 判定 */
 export function inMiniProgramWebView() {
