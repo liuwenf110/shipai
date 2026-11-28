@@ -140,6 +140,18 @@ export function PostShareButton({
       const isMp = bridgeOn || (await confirmMiniProgramEnv());
       // 环境一旦判定先上报（即便后面 navigateTo 卡住也拿得到 bridge/env）
       diagShare("env", { bridge: bridgeOn, env: isMp, via: "-", ok: "-", err: "-", kind, path: mpPath });
+      // 细粒度快照：定位到底缺哪一环（jweixin 没注入 / 注入了但 wx.miniProgram 没挂 / WeixinJSBridge 没就绪）
+      diagShare("snap", {
+        wx: typeof window.wx,
+        mp: Boolean(window.wx?.miniProgram),
+        nav: Boolean(window.wx?.miniProgram?.navigateTo),
+        jbridge: Boolean(window.WeixinJSBridge),
+        tag: Boolean(document.querySelector('script[src*="jweixin"]')),
+        wxenv: window.__wxjs_environment ?? "-",
+        src: document.querySelector<HTMLScriptElement>('script[src*="jweixin"]')?.src ?? "-",
+        kind,
+        path: mpPath,
+      });
       if (isMp) {
         const payload = { type: "share", title, path: mpPath, image: imageAbs };
         const nav = await mpNavigateToPage(mpShareTarget(mpPath));
