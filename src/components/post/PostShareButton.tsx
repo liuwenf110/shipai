@@ -131,14 +131,11 @@ export function PostShareButton({
         const payload = { type: "share", title, path: mpPath, image: imageAbs };
         const nav = await mpNavigateToPage(mpShareTarget(mpPath, imageAbs));
         if (nav.ok) return;
-        // 两条通道都没跳走：把分享意图 postMessage 给灯塔，保证右上角转发也落到当前这条内容，
-        // 并把失败原因回显出来，方便真机一眼定位（页面没跳走时提示一定看得见）。
+        // 跳转没成（iOS web-view 常把 navigateTo 静默吞掉）：先 postMessage 把当前这条内容的分享意图交给灯塔，
+        // 再引导用户走右上角——微信里唯一能 100% 拉起原生转发面板的入口，且内容已由灯塔备好在当前这条。
+        // 这里不再回显 errMsg：那是开发取证用词，对真实用户只会像报错。
         window.wx?.miniProgram?.postMessage({ data: payload });
-        showToast(
-          nav.errMsg
-            ? `分享跳转失败：${nav.errMsg}｜可点右上角「···」→ 发送给朋友`
-            : "点右上角「···」→ 发送给朋友",
-        );
+        showToast("已为你准备好这条内容的分享，点右上角「···」→「发送给朋友」即可发出");
         return;
       }
     }
