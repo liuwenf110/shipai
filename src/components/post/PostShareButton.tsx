@@ -121,16 +121,18 @@ export function PostShareButton({
     // 此时才用官方 getEnv 坐实环境再尽力跳。
     if (inMiniProgramWebView()) {
       // mpBridgeReady() 为真时短路，不会 await，保证后续 navigateTo 仍在同步栈
-      const isMp = mpBridgeReady() || (await confirmMiniProgramEnv());
+      const bridgeOn = mpBridgeReady();
+      const isMp = bridgeOn || (await confirmMiniProgramEnv());
       if (isMp) {
         const payload = { type: "share", title, path: mpPath, image: imageAbs };
         const nav = await mpNavigateToPage(mpShareTarget(mpPath));
         if (nav.ok) return;
-        // 跳转没成（iOS web-view 常把 navigateTo 静默吞掉）：先 postMessage 把当前这条内容的分享意图交给灯塔，
-        // 再引导用户走右上角——微信里唯一能 100% 拉起原生转发面板的入口，且内容已由灯塔备好在当前这条。
-        // 这里不再回显 errMsg：那是开发取证用词，对真实用户只会像报错。
         window.wx?.miniProgram?.postMessage({ data: payload });
-        showToast("已为你准备好这条内容的分享，点右上角「···」→「发送给朋友」即可发出");
+        // 临时真机诊断：安卓与 iOS 报一模一样，需拿到微信真实失败原因（page not found vs 被静默吞）才能一次修对。
+        // bridge=wx.miniProgram 是否就绪 / env=官方 getEnv 是否坐实在小程序内 / via=哪条通道 / errMsg=微信回传。
+        showToast(
+          `分享诊断 bridge=${bridgeOn} env=${isMp} via=${nav.via} err=${nav.errMsg || "无"}｜可改点右上角「···」→发送给朋友`,
+        );
         return;
       }
     }
