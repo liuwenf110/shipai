@@ -18,6 +18,21 @@ function shareImageAbs(image?: string) {
   return `${window.location.origin}${shareCoverSrc(image) ?? withBasePath(image)}`;
 }
 
+/**
+ * 临时真机诊断上报：小程序 web-view 里 navigateTo 的真机结果难以让用户转录 toast，
+ * 这里 fire-and-forget GET 一个诊断口，把信号落到服务器日志（[DIAG_SHARE]）离线定案。
+ * 定位完成后连同 diagShare 调用与 src/app/api/diag-share 一并删除。
+ */
+function diagShare(stage: string, fields: Record<string, string | boolean>) {
+  try {
+    const q = new URLSearchParams({ stage });
+    for (const [k, v] of Object.entries(fields)) q.set(k, String(v));
+    void fetch(`${withBasePath("/api/diag-share")}?${q}`, { keepalive: true, cache: "no-store" }).catch(() => {});
+  } catch {
+    // 诊断上报失败绝不能影响分享主流程
+  }
+}
+
 /** 分享链接的查询串：只保留环境标记 from=wxapp 与来源 ref=share，剥掉一次性参数 */
 function shareQuery(search: string, keepFrom = true) {
   const current = new URLSearchParams(search);
@@ -123,16 +138,15 @@ export function PostShareButton({
       // mpBridgeReady() 为真时短路，不会 await，保证后续 navigateTo 仍在同步栈
       const bridgeOn = mpBridgeReady();
       const isMp = bridgeOn || (await confirmMiniProgramEnv());
+      // 环境一旦判定先上报（即便后面 navigateTo 卡住也拿得到 bridge/env）
+      diagShare("env", { bridge: bridgeOn, env: isMp, via: "-", ok: "-", err: "-", kind, path: mpPath });
       if (isMp) {
         const payload = { type: "share", title, path: mpPath, image: imageAbs };
         const nav = await mpNavigateToPage(mpShareTarget(mpPath));
+        diagShare("nav", { bridge: bridgeOn, env: isMp, via: nav.via, ok: nav.ok, err: nav.errMsg || "-", kind, path: mpPath });
         if (nav.ok) return;
         window.wx?.miniProgram?.postMessage({ data: payload });
-        // 临时真机诊断：安卓与 iOS 报一模一样，需拿到微信真实失败原因（page not found vs 被静默吞）才能一次修对。
-        // bridge=wx.miniProgram 是否就绪 / env=官方 getEnv 是否坐实在小程序内 / via=哪条通道 / errMsg=微信回传。
-        showToast(
-          `分享诊断 bridge=${bridgeOn} env=${isMp} via=${nav.via} err=${nav.errMsg || "无"}｜可改点右上角「···」→发送给朋友`,
-        );
+        showToast("点右上角「···」→ 发送给朋友");
         return;
       }
     }
