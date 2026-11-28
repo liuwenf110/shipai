@@ -1,22 +1,3 @@
 page {
   background: #fdfdfd;
 }
-
-/* 悬浮原生转发按钮：固定在屏幕右下角，浮在 web-view 之上（真机验证是否真能盖在 web-view 上层） */
-.mp-share-fab {
-  position: fixed;
-  right: 32rpx;
-  bottom: 200rpx;
-  z-index: 9999;
-  width: 128rpx;
-  height: 128rpx;
-  line-height: 128rpx;
-  padding: 0;
-  border-radius: 50%;
-  background: #07c160;
-  color: #ffffff;
-  font-size: 28rpx;
-  font-weight: 600;
-  text-align: center;
-  box-shadow: 0 8rpx 24rpx rgba(7, 193, 96, 0.4);
-}
